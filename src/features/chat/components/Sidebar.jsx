@@ -45,7 +45,7 @@ const Sidebar = () => {
       {/* Шапка */}
       <div className="flex items-center justify-between border-b border-gray-200 bg-gray-100 p-4">
         <div className="flex flex-col">
-          <span className="text-xs text-gray-500">Вы вошли как:</span>
+          <span className="text-xs text-gray-500">Вы вошли:</span>
           <h2 className="text-sm font-bold text-gray-800 truncate">
             {currentUser.displayName || currentUser.email}
           </h2>
