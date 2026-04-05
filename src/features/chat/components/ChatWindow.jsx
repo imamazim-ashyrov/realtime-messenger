@@ -15,6 +15,8 @@ import {
 const ChatWindow = () => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
+  const [isUploading, setIsUploading] = useState(false); // Состояние загрузки
+  const fileInputRef = useRef(null); // Ссылка на скрытый input
   const scrollRef = useRef(null); // Для автопрокрутки вниз
 
   const currentUser = useAuthStore((state) => state.user);
@@ -71,6 +73,43 @@ const ChatWindow = () => {
     }
   };
 
+  // 3. Отправка изображения через ImgBB
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !chatId) return;
+
+    setIsUploading(true);
+    
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const apiKey = import.meta.env.VITE_IMGBB_API_KEY;
+      const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await response.json();
+
+      if (data.success) {
+        // Сохраняем ссылку в БД
+        await addDoc(collection(db, "messages"), {
+          chatId,
+          senderId: currentUser.uid,
+          text: "", 
+          imageUrl: data.data.url, // Новое поле для картинки
+          createdAt: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      console.error("Ошибка при загрузке картинки:", error);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   if (!selectedUser) {
     return (
       <div className="hidden flex-1 flex-col items-center justify-center bg-gray-50 p-4 md:flex">
@@ -114,7 +153,17 @@ const ChatWindow = () => {
                 ? 'bg-blue-500 text-white rounded-br-none' 
                 : 'bg-white text-gray-800 rounded-bl-none'
             }`}>
-              <p className="text-sm">{msg.text}</p>
+              {/* Если в сообщении есть картинка - показываем её */}
+              {msg.imageUrl && (
+                <img 
+                  src={msg.imageUrl} 
+                  alt="Вложение" 
+                  className="rounded-md max-w-full h-auto mb-1 max-h-64 object-cover"
+                />
+              )}
+              
+              {/* Если есть текст - показываем текст */}
+              {msg.text && <p className="text-sm">{msg.text}</p>}
               <p className={`text-[10px] mt-1 text-right ${
                 msg.senderId === currentUser.uid ? 'text-blue-100' : 'text-gray-400'
               }`}>
@@ -141,6 +190,26 @@ const ChatWindow = () => {
             className="rounded-lg bg-blue-600 px-6 py-2 font-semibold text-white hover:bg-blue-700 transition-colors"
           >
             Отправить
+          </button>
+          {/* Скрытый инпут для выбора файла */}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleImageUpload}
+          />
+          
+          {/* Кнопка скрепки */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="rounded-full p-2 text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
+          >
+            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            </svg>
           </button>
         </form>
       </div>
