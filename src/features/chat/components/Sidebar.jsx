@@ -41,7 +41,7 @@ const Sidebar = () => {
   }, [currentUser.uid]);
 
   return (
-    <div className="flex w-1/3 flex-col border-r border-gray-200 bg-white">
+    <div className={`flex-col border-r border-gray-200 bg-white ${selectedUser ? 'hidden md:flex' : 'flex w-full'} md:w-1/3`}>
       {/* Шапка */}
       <div className="flex items-center justify-between border-b border-gray-200 bg-gray-100 p-4">
         <div className="flex flex-col">

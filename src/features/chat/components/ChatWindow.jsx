@@ -19,6 +19,7 @@ const ChatWindow = () => {
 
   const currentUser = useAuthStore((state) => state.user);
   const selectedUser = useChatStore((state) => state.selectedUser);
+  const resetChat = useChatStore((state) => state.resetChat);
 
   // Генерируем уникальный ID чата для двоих пользователей
   // Сортируем ID, чтобы он был одинаковым и у отправителя, и у получателя
@@ -72,7 +73,7 @@ const ChatWindow = () => {
 
   if (!selectedUser) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center bg-gray-50 p-4">
+      <div className="hidden flex-1 flex-col items-center justify-center bg-gray-50 p-4 md:flex">
         <div className="text-center">
           <div className="mb-4 flex justify-center text-6xl text-gray-300">💬</div>
           <span className="rounded-full bg-gray-200 px-4 py-1 text-sm text-gray-500">
@@ -84,9 +85,17 @@ const ChatWindow = () => {
   }
 
   return (
-    <div className="flex flex-1 flex-col bg-gray-50">
+    <div className={`flex-col bg-gray-50 ${!selectedUser ? 'hidden md:flex' : 'flex w-full'} md:flex-1`}>
       {/* Шапка чата */}
       <div className="flex items-center space-x-3 border-b border-gray-200 bg-white p-4 shadow-sm">
+        <button 
+          onClick={resetChat}
+          className="md:hidden mr-2 rounded-full p-2 text-gray-500 hover:bg-gray-100 transition-colors"
+        >
+          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
         <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
           {selectedUser.displayName?.charAt(0).toUpperCase()}
         </div>
