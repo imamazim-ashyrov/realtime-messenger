@@ -8,6 +8,7 @@ import { useChatStore } from "../../../store/chatStore";
 
 const Sidebar = () => {
   const [users, setUsers] = useState([]);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const currentUser = useAuthStore((state) => state.user);
   const setSelectedUser = useChatStore((state) => state.setSelectedUser);
   const selectedUser = useChatStore((state) => state.selectedUser); // Достаем и само значение для подсветки
@@ -41,7 +42,9 @@ const Sidebar = () => {
   }, [currentUser.uid]);
 
   return (
-    <div className={`flex-col border-r border-gray-200 bg-white ${selectedUser ? 'hidden md:flex' : 'flex w-full'} md:w-1/3`}>
+    <div
+      className={`flex-col border-r border-gray-200 bg-white ${selectedUser ? "hidden md:flex" : "flex w-full"} md:w-1/3`}
+    >
       {/* Шапка */}
       <div className="flex items-center justify-between border-b border-gray-200 bg-gray-100 p-4">
         <div className="flex flex-col">
@@ -51,7 +54,7 @@ const Sidebar = () => {
           </h2>
         </div>
         <button
-          onClick={handleLogout}
+          onClick={() => setShowLogoutConfirm(true)}
           className="text-xs text-red-500 font-semibold hover:underline"
         >
           Выйти
@@ -93,6 +96,35 @@ const Sidebar = () => {
           </p>
         )}
       </div>
+
+      {/* --- МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ ВЫХОДА --- */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl text-center">
+            <h3 className="mb-2 text-xl font-bold text-gray-900">
+              Выход из аккаунта
+            </h3>
+            <p className="mb-6 text-sm text-gray-500">
+              Вы уверены, что хотите выйти? Вам придется заново вводить email и
+              пароль.
+            </p>
+            <div className="flex flex-col space-y-3">
+              <button
+                onClick={handleLogout}
+                className="rounded-lg bg-red-600 py-2 font-medium text-white hover:bg-red-700 transition-colors shadow-sm"
+              >
+                Да, выйти
+              </button>
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="rounded-lg bg-gray-100 py-2 font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
