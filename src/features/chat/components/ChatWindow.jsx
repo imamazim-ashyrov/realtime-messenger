@@ -10,12 +10,17 @@ import {
   orderBy,
   onSnapshot,
   serverTimestamp,
+  doc,
+  deleteDoc,
+  updateDoc,
+  arrayUnion,
 } from "firebase/firestore";
 
 const ChatWindow = () => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [isUploading, setIsUploading] = useState(false); // Состояние загрузки
+  const [messageToDelete, setMessageToDelete] = useState(null); // Для хранения ID сообщения, которое хотим удалить
   const fileInputRef = useRef(null); // Ссылка на скрытый input
   const scrollRef = useRef(null); // Для автопрокрутки вниз
   const isFirstLoad = useRef(true);
@@ -41,7 +46,7 @@ const ChatWindow = () => {
     const q = query(
       collection(db, "messages"),
       where("chatId", "==", chatId),
-      orderBy("createdAt", "asc")
+      orderBy("createdAt", "asc"),
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -58,18 +63,30 @@ const ChatWindow = () => {
       } else {
         // Если это НЕ первая загрузка, значит прилетело новое сообщение в реальном времени!
         const lastMessage = msgs[msgs.length - 1];
-        
+
         // Проверяем: если сообщение существует и его отправил НЕ текущий пользователь
         if (lastMessage && lastMessage.senderId !== currentUser.uid) {
           // Создаем аудио (здесь я вставил прямую ссылку на приятный звук "дзынь")
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3');
+          const audio = new Audio(
+            "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3",
+          );
           // Пробуем проиграть звук (браузеры могут блокировать звук, если вкладка неактивна, поэтому ловим ошибку)
-          audio.play().catch(err => console.log("Автовоспроизведение звука заблокировано браузером", err));
+          audio
+            .play()
+            .catch((err) =>
+              console.log(
+                "Автовоспроизведение звука заблокировано браузером",
+                err,
+              ),
+            );
         }
       }
       // ------------------------------------
 
-      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      setTimeout(
+        () => scrollRef.current?.scrollIntoView({ behavior: "smooth" }),
+        100,
+      );
     });
 
     return () => unsubscribe();
@@ -135,6 +152,32 @@ const ChatWindow = () => {
     }
   };
 
+  // --- ЛОГИКА УДАЛЕНИЯ СООБЩЕНИЙ ---
+  const handleDeleteForEveryone = async () => {
+    if (!messageToDelete) return;
+    try {
+      // Физически удаляем документ из базы
+      await deleteDoc(doc(db, "messages", messageToDelete.id));
+      setMessageToDelete(null); // Закрываем окно
+    } catch (error) {
+      console.error("Ошибка при удалении у всех:", error);
+    }
+  };
+
+  const handleDeleteForMe = async () => {
+    if (!messageToDelete) return;
+    try {
+      // Записываем ID текущего пользователя в черный список этого сообщения
+      await updateDoc(doc(db, "messages", messageToDelete.id), {
+        deletedFor: arrayUnion(currentUser.uid),
+      });
+      setMessageToDelete(null); // Закрываем окно
+    } catch (error) {
+      console.error("Ошибка при удалении у себя:", error);
+    }
+  };
+  // ---------------------------------
+
   if (!selectedUser) {
     return (
       <div className="hidden flex-1 flex-col items-center justify-center bg-gray-50 p-4 md:flex">
@@ -184,47 +227,85 @@ const ChatWindow = () => {
 
       {/* Область сообщений */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-80">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex ${msg.senderId === currentUser.uid ? "justify-end" : "justify-start"}`}
-          >
+        {messages
+          .filter((msg) => !msg.deletedFor?.includes(currentUser.uid)) // Фильтруем сообщения, удаленные для текущего пользователя
+          .map((msg) => (
             <div
-              className={`max-w-[70%] rounded-lg px-4 py-2 shadow-sm ${
-                msg.senderId === currentUser.uid
-                  ? "bg-blue-500 text-white rounded-br-none"
-                  : "bg-white text-gray-800 rounded-bl-none"
-              }`}
+              key={msg.id}
+              className={`flex ${msg.senderId === currentUser.uid ? "justify-end" : "justify-start"}`}
+              onClick={() => setMessageToDelete(msg)}
+              title="Нажмите, чтобы удалить"
             >
-              {/* Если в сообщении есть картинка - показываем её */}
-              {msg.imageUrl && (
-                <img
-                  src={msg.imageUrl}
-                  alt="Вложение"
-                  className="rounded-md max-w-full h-auto mb-1 max-h-64 object-cover"
-                />
-              )}
-
-              {/* Если есть текст - показываем текст */}
-              {msg.text && <p className="text-sm">{msg.text}</p>}
-              <p
-                className={`text-[10px] mt-1 text-right ${
+              <div
+                className={`max-w-[70%] rounded-lg px-4 py-2 shadow-sm ${
                   msg.senderId === currentUser.uid
-                    ? "text-blue-100"
-                    : "text-gray-400"
+                    ? "bg-blue-500 text-white rounded-br-none"
+                    : "bg-white text-gray-800 rounded-bl-none"
                 }`}
               >
-                {msg.createdAt
-                  ?.toDate()
-                  .toLocaleTimeString([], {
+                {/* Если в сообщении есть картинка - показываем её */}
+                {msg.imageUrl && (
+                  <img
+                    src={msg.imageUrl}
+                    alt="Вложение"
+                    className="rounded-md max-w-full h-auto mb-1 max-h-64 object-cover"
+                  />
+                )}
+
+                {/* Если есть текст - показываем текст */}
+                {msg.text && <p className="text-sm">{msg.text}</p>}
+                <p
+                  className={`text-[10px] mt-1 text-right ${
+                    msg.senderId === currentUser.uid
+                      ? "text-blue-100"
+                      : "text-gray-400"
+                  }`}
+                >
+                  {msg.createdAt?.toDate().toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
-              </p>
+                </p>
+              </div>
+            </div>
+          ))}
+        <div ref={scrollRef} />
+        
+        {/* --- МОДАЛЬНОЕ ОКНО УДАЛЕНИЯ --- */}
+        {messageToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+            <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl text-center">
+              <h3 className="mb-4 text-lg font-medium text-gray-900">
+                Что сделать с сообщением?
+              </h3>
+              <div className="flex flex-col space-y-3">
+                {/* Кнопка "Удалить у всех" показывается ТОЛЬКО если это твое сообщение */}
+                {messageToDelete.senderId === currentUser.uid && (
+                  <button
+                    onClick={handleDeleteForEveryone}
+                    className="rounded-lg bg-red-100 py-2 font-medium text-red-600 hover:bg-red-200 transition-colors"
+                  >
+                    Удалить у всех
+                  </button>
+                )}
+
+                <button
+                  onClick={handleDeleteForMe}
+                  className="rounded-lg bg-yellow-100 py-2 font-medium text-yellow-700 hover:bg-yellow-200 transition-colors"
+                >
+                  Удалить только у меня
+                </button>
+
+                <button
+                  onClick={() => setMessageToDelete(null)}
+                  className="rounded-lg bg-gray-100 py-2 font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
             </div>
           </div>
-        ))}
-        <div ref={scrollRef} />
+        )}
       </div>
 
       {/* Ввод сообщения */}
