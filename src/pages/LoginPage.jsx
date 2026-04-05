@@ -12,12 +12,14 @@ import {
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
   // Новое состояние: определяет, находимся ли мы в режиме регистрации
   const [isRegistering, setIsRegistering] = useState(false);
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
+    setError(""); // Сбрасываем ошибку при новом сабмите
     try {
       if (isRegistering) {
         // 1. Создаем пользователя в Firebase Auth
@@ -49,10 +51,29 @@ const LoginPage = () => {
       }
     } catch (error) {
       console.error("Ошибка авторизации:", error.message);
+      switch (error.code) {
+        case "auth/invalid-credential":
+        case "auth/user-not-found":
+        case "auth/wrong-password":
+          setError("Неверный email или пароль.");
+          break;
+        case "auth/email-already-in-use":
+          setError("Пользователь с таким email уже зарегистрирован.");
+          break;
+        case "auth/weak-password":
+          setError("Пароль должен содержать не менее 6 символов.");
+          break;
+        case "auth/invalid-email":
+          setError("Некорректный формат email.");
+          break;
+        default:
+          setError("Произошла ошибка авторизации. Попробуйте еще раз.");
+      }
     }
   };
 
   const handleGoogleLogin = async () => {
+    setError(""); // Сбрасываем ошибку при новом сабмите
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -76,6 +97,7 @@ const LoginPage = () => {
       console.log("Успешный вход через Google и сохранение в БД!");
     } catch (error) {
       console.error("Ошибка входа через Google:", error.message);
+      setError("Произошла ошибка при входе через Google. Попробуйте еще раз.");
     }
   };
 
@@ -86,6 +108,13 @@ const LoginPage = () => {
         <h2 className="mb-6 text-center text-3xl font-bold text-gray-800">
           {isRegistering ? "Создать аккаунт" : "Вход в Мессенджер"}
         </h2>
+
+        {/* Показываем ошибку, если она есть */}
+        {error && (
+          <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200 text-center animate-pulse">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleEmailSubmit} className="space-y-4">
           <div>
