@@ -15,6 +15,7 @@ import {
   deleteDoc,
   updateDoc,
   arrayUnion,
+  writeBatch,
 } from "firebase/firestore";
 
 const ChatWindow = () => {
@@ -40,7 +41,7 @@ const ChatWindow = () => {
     isFirstLoad.current = true;
   }, [chatId]);
 
-  // 1. СЛУШАЕМ СООБЩЕНИЯ (Real-time)
+  // 1. СЛУШАЕМ СООБЩЕНИЯ (Real-time) + ОБНОВЛЯЕМ СТАТУС
   useEffect(() => {
     if (!chatId) return;
 
@@ -50,12 +51,38 @@ const ChatWindow = () => {
       orderBy("createdAt", "asc"),
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       const msgs = [];
-      snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() });
+      const messagesToMarkAsRead = [];
+
+      snapshot.forEach((docSnap) => {
+        const msgData = docSnap.data();
+        msgs.push({ id: docSnap.id, ...msgData });
+
+        // Собираем входящие сообщения, которые еще не прочитаны
+        if (
+          msgData.senderId !== currentUser.uid &&
+          msgData.status !== "read"
+        ) {
+          messagesToMarkAsRead.push(docSnap.id);
+        }
       });
+
       setMessages(msgs);
+
+      // Обновляем статус на "read" для всех входящих сообщений (используем writeBatch для оптимизации)
+      if (messagesToMarkAsRead.length > 0) {
+        try {
+          const batch = writeBatch(db);
+          messagesToMarkAsRead.forEach((msgId) => {
+            const msgRef = doc(db, "messages", msgId);
+            batch.update(msgRef, { status: "read" });
+          });
+          await batch.commit();
+        } catch (error) {
+          console.error("Ошибка при обновлении статуса:", error);
+        }
+      }
 
       // --- ЛОГИКА ЗВУКОВОГО УВЕДОМЛЕНИЯ ---
       if (isFirstLoad.current) {
@@ -93,7 +120,7 @@ const ChatWindow = () => {
     return () => unsubscribe();
   }, [chatId, currentUser.uid]); // Не забудь добавить currentUser.uid в зависимости
 
-  // 2. ОТПРАВЛЯЕМ СООБЩЕНИЕ (с шифрованием)
+  // 2. ОТПРАВЛЯЕМ СООБЩЕНИЕ (с шифрованием и статусом)
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!message.trim() || !chatId) return;
@@ -109,6 +136,7 @@ const ChatWindow = () => {
         chatId,
         senderId: currentUser.uid,
         text: encryptedText, // Отправляем зашифрованный текст
+        status: "sent", // Добавляем статус "отправлено"
         createdAt: serverTimestamp(),
       });
     } catch (error) {
@@ -145,6 +173,7 @@ const ChatWindow = () => {
           senderId: currentUser.uid,
           text: "",
           imageUrl: data.data.url, // Новое поле для картинки
+          status: "sent", // Добавляем статус "отправлено"
           createdAt: serverTimestamp(),
         });
       }
@@ -258,18 +287,41 @@ const ChatWindow = () => {
 
                 {/* Если есть текст - показываем расшифрованный текст */}
                 {msg.text && <p className="text-sm">{decryptMessage(msg.text, chatId)}</p>}
-                <p
-                  className={`text-[10px] mt-1 text-right ${
-                    msg.senderId === currentUser.uid
-                      ? "text-blue-100"
-                      : "text-gray-400"
-                  }`}
-                >
-                  {msg.createdAt?.toDate().toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
+                <div className="flex items-center justify-between gap-2 mt-1">
+                  <p
+                    className={`text-[10px] ${
+                      msg.senderId === currentUser.uid
+                        ? "text-blue-100"
+                        : "text-gray-400"
+                    }`}
+                  >
+                    {msg.createdAt?.toDate().toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  {/* Галочки статуса (только для собственных сообщений отправителя) */}
+                  {msg.senderId === currentUser.uid && (
+                    <div className="flex gap-0.5">
+                      {msg.status === "read" ? (
+                        // Две синие галочки для "прочитано"
+                        <>
+                          <svg className="w-3 h-3 text-blue-300" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                          </svg>
+                          <svg className="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                          </svg>
+                        </>
+                      ) : (
+                        // Одна серая галочка для "отправлено"
+                        <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                        </svg>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ))}
