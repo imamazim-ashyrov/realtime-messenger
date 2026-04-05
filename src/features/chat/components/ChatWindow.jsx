@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../../../store/authStore";
 import { useChatStore } from "../../../store/chatStore";
 import { db } from "../../../services/firebase";
+import { encryptMessage, decryptMessage } from "../../../utils/crypto";
 import {
   collection,
   addDoc,
@@ -92,7 +93,7 @@ const ChatWindow = () => {
     return () => unsubscribe();
   }, [chatId, currentUser.uid]); // Не забудь добавить currentUser.uid в зависимости
 
-  // 2. ОТПРАВЛЯЕМ СООБЩЕНИЕ
+  // 2. ОТПРАВЛЯЕМ СООБЩЕНИЕ (с шифрованием)
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!message.trim() || !chatId) return;
@@ -101,10 +102,13 @@ const ChatWindow = () => {
     setMessage(""); // Мгновенно очищаем поле для лучшего UX
 
     try {
+      // Шифруем сообщение перед отправкой
+      const encryptedText = encryptMessage(text, chatId);
+
       await addDoc(collection(db, "messages"), {
         chatId,
         senderId: currentUser.uid,
-        text: text,
+        text: encryptedText, // Отправляем зашифрованный текст
         createdAt: serverTimestamp(),
       });
     } catch (error) {
@@ -252,8 +256,8 @@ const ChatWindow = () => {
                   />
                 )}
 
-                {/* Если есть текст - показываем текст */}
-                {msg.text && <p className="text-sm">{msg.text}</p>}
+                {/* Если есть текст - показываем расшифрованный текст */}
+                {msg.text && <p className="text-sm">{decryptMessage(msg.text, chatId)}</p>}
                 <p
                   className={`text-[10px] mt-1 text-right ${
                     msg.senderId === currentUser.uid
@@ -270,7 +274,7 @@ const ChatWindow = () => {
             </div>
           ))}
         <div ref={scrollRef} />
-        
+
         {/* --- МОДАЛЬНОЕ ОКНО УДАЛЕНИЯ --- */}
         {messageToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
