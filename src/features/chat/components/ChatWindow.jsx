@@ -4,13 +4,7 @@ import { useChatStore } from "../../../store/chatStore";
 import { db } from "../../../services/firebase";
 import { encryptMessage, decryptMessage } from "../../../utils/crypto";
 import { rtdb } from "../../../services/firebase";
-import {
-  ref,
-  onValue,
-  onDisconnect,
-  set,
-  serverTimestamp,
-} from "firebase/database";
+import { ref, onValue, onDisconnect, set } from "firebase/database";
 import {
   collection,
   addDoc,
