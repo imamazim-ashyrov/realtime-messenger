@@ -88,7 +88,6 @@ const LoginPage = () => {
           email: user.email,
           displayName: user.displayName,
           avatarUrl: user.photoURL || null,
-          isOnline: true,
           lastLogin: serverTimestamp(),
         },
         { merge: true },
