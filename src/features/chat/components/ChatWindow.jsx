@@ -9,7 +9,7 @@ import {
   onValue,
   onDisconnect,
   set,
-  serverTimestamp as rtdbServerTimestamp,
+  serverTimestamp,
 } from "firebase/database";
 import {
   collection,
@@ -241,8 +241,14 @@ const ChatWindow = () => {
     return () => unsubscribe();
   }, [chatId, selectedUser]);
 
+  useEffect(() => {
+    if (isPartnerTyping) {
+      setTimeout(() => {
+        scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
+    }
+  }, [isPartnerTyping]);
 
-  
   // Настраиваем мой RTDB-референс для статуса печати и onDisconnect
   useEffect(() => {
     if (!chatId || !currentUser) return;
@@ -254,7 +260,10 @@ const ChatWindow = () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       if (myTypingRef.current) {
         set(myTypingRef.current, false).catch((error) => {
-          console.error("Ошибка сброса статуса печати при размонтировании:", error);
+          console.error(
+            "Ошибка сброса статуса печати при размонтировании:",
+            error,
+          );
         });
       }
       setIsTyping(false);
@@ -337,145 +346,162 @@ const ChatWindow = () => {
       </div>
 
       {/* Область сообщений */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-80">
-        {messages
-          .filter((msg) => !msg.deletedFor?.includes(currentUser.uid)) // Фильтруем сообщения, удаленные для текущего пользователя
-          .map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.senderId === currentUser.uid ? "justify-end" : "justify-start"}`}
-              onClick={() => setMessageToDelete(msg)}
-              title="Нажмите, чтобы удалить"
-            >
+      <div className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0 overflow-y-auto p-4 space-y-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-80 pb-28">
+          {messages
+            .filter((msg) => !msg.deletedFor?.includes(currentUser.uid)) // Фильтруем сообщения, удаленные для текущего пользователя
+            .map((msg) => (
               <div
-                className={`max-w-[70%] rounded-lg px-4 py-2 shadow-sm ${
-                  msg.senderId === currentUser.uid
-                    ? "bg-blue-500 text-white rounded-br-none"
-                    : "bg-white text-gray-800 rounded-bl-none"
-                }`}
+                key={msg.id}
+                className={`flex ${msg.senderId === currentUser.uid ? "justify-end" : "justify-start"}`}
+                onClick={() => setMessageToDelete(msg)}
+                title="Нажмите, чтобы удалить"
               >
-                {/* Если в сообщении есть картинка - показываем её */}
-                {msg.imageUrl && (
-                  <img
-                    src={msg.imageUrl}
-                    alt="Вложение"
-                    className="rounded-md max-w-full h-auto mb-1 max-h-64 object-cover"
-                  />
-                )}
-
-                {/* Если есть текст - показываем расшифрованный текст */}
-                {msg.text && (
-                  <p className="text-sm">{decryptMessage(msg.text, chatId)}</p>
-                )}
-                <div className="flex items-center justify-between gap-2 mt-1">
-                  <p
-                    className={`text-[10px] ${
-                      msg.senderId === currentUser.uid
-                        ? "text-blue-100"
-                        : "text-gray-400"
-                    }`}
-                  >
-                    {msg.createdAt?.toDate().toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                  {/* Галочки статуса (только для собственных сообщений отправителя) */}
-                  {msg.senderId === currentUser.uid && (
-                    <div className="flex gap-0.5">
-                      {msg.status === "read" ? (
-                        // Две синие галочки для "прочитано"
-                        <>
-                          <svg
-                            className="w-3 h-3 text-blue-300"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                          </svg>
-                          <svg
-                            className="w-3 h-3 text-blue-500"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                          </svg>
-                        </>
-                      ) : (
-                        // Одна серая галочка для "отправлено"
-                        <svg
-                          className="w-3 h-3 text-gray-400"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                        </svg>
-                      )}
-                    </div>
+                <div
+                  className={`max-w-[70%] rounded-lg px-4 py-2 shadow-sm ${
+                    msg.senderId === currentUser.uid
+                      ? "bg-blue-500 text-white rounded-br-none"
+                      : "bg-white text-gray-800 rounded-bl-none"
+                  }`}
+                >
+                  {/* Если в сообщении есть картинка - показываем её */}
+                  {msg.imageUrl && (
+                    <img
+                      src={msg.imageUrl}
+                      alt="Вложение"
+                      className="rounded-md max-w-full h-auto mb-1 max-h-64 object-cover"
+                    />
                   )}
+
+                  {/* Если есть текст - показываем расшифрованный текст */}
+                  {msg.text && (
+                    <p className="text-sm">
+                      {decryptMessage(msg.text, chatId)}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <p
+                      className={`text-[10px] ${
+                        msg.senderId === currentUser.uid
+                          ? "text-blue-100"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {msg.createdAt?.toDate().toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    {/* Галочки статуса (только для собственных сообщений отправителя) */}
+                    {msg.senderId === currentUser.uid && (
+                      <div className="flex gap-0.5">
+                        {msg.status === "read" ? (
+                          // Две синие галочки для "прочитано"
+                          <>
+                            <svg
+                              className="w-3 h-3 text-blue-300"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                            </svg>
+                            <svg
+                              className="w-3 h-3 text-blue-500"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                            </svg>
+                          </>
+                        ) : (
+                          // Одна серая галочка для "отправлено"
+                          <svg
+                            className="w-3 h-3 text-gray-400"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
+                          </svg>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          <div ref={scrollRef} />
+
+          {/* --- МОДАЛЬНОЕ ОКНО УДАЛЕНИЯ --- */}
+          {messageToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
+              <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl text-center">
+                <h3 className="mb-4 text-lg font-medium text-gray-900">
+                  Что сделать с сообщением?
+                </h3>
+                <div className="flex flex-col space-y-3">
+                  {/* Кнопка "Удалить у всех" показывается ТОЛЬКО если это твое сообщение */}
+                  {messageToDelete.senderId === currentUser.uid && (
+                    <button
+                      onClick={handleDeleteForEveryone}
+                      className="rounded-lg bg-red-100 py-2 font-medium text-red-600 hover:bg-red-200 transition-colors"
+                    >
+                      Удалить у всех
+                    </button>
+                  )}
+
+                  <button
+                    onClick={handleDeleteForMe}
+                    className="rounded-lg bg-yellow-100 py-2 font-medium text-yellow-700 hover:bg-yellow-200 transition-colors"
+                  >
+                    Удалить только у меня
+                  </button>
+
+                  <button
+                    onClick={() => setMessageToDelete(null)}
+                    className="rounded-lg bg-gray-100 py-2 font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                  >
+                    Отмена
+                  </button>
                 </div>
               </div>
             </div>
-          ))}
-        <div ref={scrollRef} />
+          )}
+        </div>
 
-        {/* --- МОДАЛЬНОЕ ОКНО УДАЛЕНИЯ --- */}
-        {messageToDelete && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
-            <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl text-center">
-              <h3 className="mb-4 text-lg font-medium text-gray-900">
-                Что сделать с сообщением?
-              </h3>
-              <div className="flex flex-col space-y-3">
-                {/* Кнопка "Удалить у всех" показывается ТОЛЬКО если это твое сообщение */}
-                {messageToDelete.senderId === currentUser.uid && (
-                  <button
-                    onClick={handleDeleteForEveryone}
-                    className="rounded-lg bg-red-100 py-2 font-medium text-red-600 hover:bg-red-200 transition-colors"
-                  >
-                    Удалить у всех
-                  </button>
-                )}
-
-                <button
-                  onClick={handleDeleteForMe}
-                  className="rounded-lg bg-yellow-100 py-2 font-medium text-yellow-700 hover:bg-yellow-200 transition-colors"
-                >
-                  Удалить только у меня
-                </button>
-
-                <button
-                  onClick={() => setMessageToDelete(null)}
-                  className="rounded-lg bg-gray-100 py-2 font-medium text-gray-700 hover:bg-gray-200 transition-colors"
-                >
-                  Отмена
-                </button>
-              </div>
+        {/* Индикатор "печатает..." */}
+        {/* absolute, чтобы индикатор не сжимал область сообщений */}
+        <div
+          className={`absolute left-4 bottom-2 inline-flex justify-start transition-all duration-300 ease-in-out ${
+            isPartnerTyping
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-2 pointer-events-none"
+          }`}
+        >
+          <div className="bg-white text-gray-800 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm border border-gray-100 flex items-center space-x-3 w-fit">
+            {/* Мини-аватарка собеседника */}
+            <div className="h-6 w-6 rounded-full bg-gradient-to-r from-blue-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+              {selectedUser?.displayName?.charAt(0).toUpperCase() || "U"}
+            </div>
+            {/* Текст */}
+            <span className="text-sm font-medium text-gray-500">печатает</span>
+            {/* Анимированная волна из точек */}
+            <div className="flex space-x-1.5 items-center pt-1">
+              <div
+                className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"
+                style={{ animationDelay: "0ms" }}
+              ></div>
+              <div
+                className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"
+                style={{ animationDelay: "150ms" }}
+              ></div>
+              <div
+                className="w-1.5 h-1.5 bg-blue-300 rounded-full animate-bounce"
+                style={{ animationDelay: "300ms" }}
+              ></div>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Индикатор "печатает..." */}
-      {isPartnerTyping && (
-        <div className="px-4 py-1 flex items-center space-x-2 italic text-xs text-gray-500 bg-gray-50/50 animate-pulse">
-          <span>{selectedUser.displayName} печатает...</span>
-          <div className="flex space-x-1">
-            <div
-              className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-              style={{ animationDelay: "0ms" }}
-            ></div>
-            <div
-              className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-              style={{ animationDelay: "150ms" }}
-            ></div>
-            <div
-              className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-              style={{ animationDelay: "300ms" }}
-            ></div>
-          </div>
         </div>
-      )}
+      </div>
 
       {/* Ввод сообщения */}
       <div className="border-t border-gray-200 bg-white p-4">
