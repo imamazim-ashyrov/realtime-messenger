@@ -3,6 +3,14 @@ import { useAuthStore } from "../../../store/authStore";
 import { useChatStore } from "../../../store/chatStore";
 import { db } from "../../../services/firebase";
 import { encryptMessage, decryptMessage } from "../../../utils/crypto";
+import { rtdb } from "../../../services/firebase";
+import {
+  ref,
+  onValue,
+  onDisconnect,
+  set,
+  serverTimestamp as rtdbServerTimestamp,
+} from "firebase/database";
 import {
   collection,
   addDoc,
@@ -23,9 +31,13 @@ const ChatWindow = () => {
   const [messages, setMessages] = useState([]);
   const [isUploading, setIsUploading] = useState(false); // Состояние загрузки
   const [messageToDelete, setMessageToDelete] = useState(null); // Для хранения ID сообщения, которое хотим удалить
+  const [isPartnerTyping, setIsPartnerTyping] = useState(false); // Для отображения статуса "печатает..."
+  const [isTyping, setIsTyping] = useState(false); // Локальный флаг, чтобы не писать true в RTDB на каждый символ
   const fileInputRef = useRef(null); // Ссылка на скрытый input
   const scrollRef = useRef(null); // Для автопрокрутки вниз
   const isFirstLoad = useRef(true);
+  const typingTimeoutRef = useRef(null); // Для хранения таймаута "печатает..."
+  const myTypingRef = useRef(null); // RTDB ref для моего статуса печати
 
   const currentUser = useAuthStore((state) => state.user);
   const selectedUser = useChatStore((state) => state.selectedUser);
@@ -60,10 +72,7 @@ const ChatWindow = () => {
         msgs.push({ id: docSnap.id, ...msgData });
 
         // Собираем входящие сообщения, которые еще не прочитаны
-        if (
-          msgData.senderId !== currentUser.uid &&
-          msgData.status !== "read"
-        ) {
+        if (msgData.senderId !== currentUser.uid && msgData.status !== "read") {
           messagesToMarkAsRead.push(docSnap.id);
         }
       });
@@ -139,6 +148,15 @@ const ChatWindow = () => {
         status: "sent", // Добавляем статус "отправлено"
         createdAt: serverTimestamp(),
       });
+
+      // После успешной отправки сбрасываем статус печати сразу
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (myTypingRef.current) {
+        set(myTypingRef.current, false).catch((error) => {
+          console.error("Ошибка сброса статуса печати после отправки:", error);
+        });
+      }
+      setIsTyping(false);
     } catch (error) {
       console.error("Ошибка при отправке:", error);
     }
@@ -185,7 +203,7 @@ const ChatWindow = () => {
     }
   };
 
-  // --- ЛОГИКА УДАЛЕНИЯ СООБЩЕНИЙ ---
+  //4. --- ЛОГИКА УДАЛЕНИЯ СООБЩЕНИЙ ---
   const handleDeleteForEveryone = async () => {
     if (!messageToDelete) return;
     try {
@@ -209,6 +227,66 @@ const ChatWindow = () => {
       console.error("Ошибка при удалении у себя:", error);
     }
   };
+
+  //5. --- ЛОГИКА СТАТУСА "ПЕЧАТАЕТ..." ---
+  useEffect(() => {
+    if (!chatId || !selectedUser) return;
+    // Путь к статусу печати собеседника в этом конкретном чате
+    const partnerTypingRef = ref(rtdb, `typing/${chatId}/${selectedUser.uid}`);
+
+    const unsubscribe = onValue(partnerTypingRef, (snapshot) => {
+      setIsPartnerTyping(snapshot.val() === true);
+    });
+
+    return () => unsubscribe();
+  }, [chatId, selectedUser]);
+
+
+  
+  // Настраиваем мой RTDB-референс для статуса печати и onDisconnect
+  useEffect(() => {
+    if (!chatId || !currentUser) return;
+
+    myTypingRef.current = ref(rtdb, `typing/${chatId}/${currentUser.uid}`);
+    onDisconnect(myTypingRef.current).set(false);
+
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (myTypingRef.current) {
+        set(myTypingRef.current, false).catch((error) => {
+          console.error("Ошибка сброса статуса печати при размонтировании:", error);
+        });
+      }
+      setIsTyping(false);
+      myTypingRef.current = null;
+    };
+  }, [chatId, currentUser]);
+
+  // Функция обновления МОЕГО статуса печати
+  const handleTyping = () => {
+    if (!chatId || !currentUser || !myTypingRef.current) return;
+
+    // Не пишем true в RTDB заново, если уже в состоянии печати
+    if (!isTyping) {
+      set(myTypingRef.current, true).catch((error) => {
+        console.error("Ошибка установки статуса печати:", error);
+      });
+      setIsTyping(true);
+    }
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    // Через 3 секунды бездействия сбрасываем статус
+    typingTimeoutRef.current = setTimeout(() => {
+      if (myTypingRef.current) {
+        set(myTypingRef.current, false).catch((error) => {
+          console.error("Ошибка сброса статуса печати:", error);
+        });
+      }
+      setIsTyping(false);
+    }, 3000);
+  };
+
   // ---------------------------------
 
   if (!selectedUser) {
@@ -286,7 +364,9 @@ const ChatWindow = () => {
                 )}
 
                 {/* Если есть текст - показываем расшифрованный текст */}
-                {msg.text && <p className="text-sm">{decryptMessage(msg.text, chatId)}</p>}
+                {msg.text && (
+                  <p className="text-sm">{decryptMessage(msg.text, chatId)}</p>
+                )}
                 <div className="flex items-center justify-between gap-2 mt-1">
                   <p
                     className={`text-[10px] ${
@@ -306,16 +386,28 @@ const ChatWindow = () => {
                       {msg.status === "read" ? (
                         // Две синие галочки для "прочитано"
                         <>
-                          <svg className="w-3 h-3 text-blue-300" fill="currentColor" viewBox="0 0 20 20">
+                          <svg
+                            className="w-3 h-3 text-blue-300"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
                             <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
                           </svg>
-                          <svg className="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                          <svg
+                            className="w-3 h-3 text-blue-500"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
                             <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
                           </svg>
                         </>
                       ) : (
                         // Одна серая галочка для "отправлено"
-                        <svg className="w-3 h-3 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                        <svg
+                          className="w-3 h-3 text-gray-400"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
                           <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
                         </svg>
                       )}
@@ -364,13 +456,37 @@ const ChatWindow = () => {
         )}
       </div>
 
+      {/* Индикатор "печатает..." */}
+      {isPartnerTyping && (
+        <div className="px-4 py-1 flex items-center space-x-2 italic text-xs text-gray-500 bg-gray-50/50 animate-pulse">
+          <span>{selectedUser.displayName} печатает...</span>
+          <div className="flex space-x-1">
+            <div
+              className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: "0ms" }}
+            ></div>
+            <div
+              className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: "150ms" }}
+            ></div>
+            <div
+              className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
+              style={{ animationDelay: "300ms" }}
+            ></div>
+          </div>
+        </div>
+      )}
+
       {/* Ввод сообщения */}
       <div className="border-t border-gray-200 bg-white p-4">
         <form className="flex space-x-2" onSubmit={handleSendMessage}>
           <input
             type="text"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              handleTyping();
+            }}
             placeholder="Напишите сообщение..."
             className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none"
           />
