@@ -1,168 +1,92 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useAuthStore } from "../../../store/authStore";
 import { useChatStore } from "../../../store/chatStore";
 import { db } from "../../../services/firebase";
-import { encryptMessage, decryptMessage } from "../../../utils/crypto";
-import { rtdb } from "../../../services/firebase";
-import { ref, onValue, onDisconnect, set } from "firebase/database";
+import { encryptMessage } from "../../../utils/crypto";
+import useChatMessages from "../../../hooks/useChatMessages";
+import useTypingStatus from "../../../hooks/useTypingStatus";
+import MessagesList from "./MessagesList";
+import DeleteMessageModal from "./DeleteMessageModal";
+import ChatInput from "./ChatInput";
 import {
   collection,
   addDoc,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
   serverTimestamp,
   doc,
   deleteDoc,
   updateDoc,
   arrayUnion,
-  writeBatch,
 } from "firebase/firestore";
 
 const ChatWindow = () => {
   const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState([]);
-  const [isUploading, setIsUploading] = useState(false); // Состояние загрузки
-  const [messageToDelete, setMessageToDelete] = useState(null); // Для хранения ID сообщения, которое хотим удалить
-  const [isPartnerTyping, setIsPartnerTyping] = useState(false); // Для отображения статуса "печатает..."
-  const [isTyping, setIsTyping] = useState(false); // Локальный флаг, чтобы не писать true в RTDB на каждый символ
-  const fileInputRef = useRef(null); // Ссылка на скрытый input
-  const scrollRef = useRef(null); // Для автопрокрутки вниз
-  const isFirstLoad = useRef(true);
-  const typingTimeoutRef = useRef(null); // Для хранения таймаута "печатает..."
-  const myTypingRef = useRef(null); // RTDB ref для моего статуса печати
+  const [isUploading, setIsUploading] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState(null);
+  const scrollRef = useRef(null);
 
   const currentUser = useAuthStore((state) => state.user);
   const selectedUser = useChatStore((state) => state.selectedUser);
   const resetChat = useChatStore((state) => state.resetChat);
 
-  // Генерируем уникальный ID чата для двоих пользователей
-  // Сортируем ID, чтобы он был одинаковым и у отправителя, и у получателя
-  const chatId = selectedUser
+  const chatId = selectedUser && currentUser
     ? [currentUser.uid, selectedUser.uid].sort().join("_")
     : null;
 
-  useEffect(() => {
-    isFirstLoad.current = true;
-  }, [chatId]);
-
-  // 1. СЛУШАЕМ СООБЩЕНИЯ (Real-time) + ОБНОВЛЯЕМ СТАТУС
-  useEffect(() => {
-    if (!chatId) return;
-
-    const q = query(
-      collection(db, "messages"),
-      where("chatId", "==", chatId),
-      orderBy("createdAt", "asc"),
+  const handleIncomingMessage = useCallback((lastMessage) => {
+    const audio = new Audio(
+      "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3",
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const msgs = [];
-      const messagesToMarkAsRead = [];
-
-      snapshot.forEach((docSnap) => {
-        const msgData = docSnap.data();
-        msgs.push({ id: docSnap.id, ...msgData });
-
-        // Собираем входящие сообщения, которые еще не прочитаны
-        if (msgData.senderId !== currentUser.uid && msgData.status !== "read") {
-          messagesToMarkAsRead.push(docSnap.id);
-        }
-      });
-
-      setMessages(msgs);
-
-      // Обновляем статус на "read" для всех входящих сообщений (используем writeBatch для оптимизации)
-      if (messagesToMarkAsRead.length > 0) {
-        try {
-          const batch = writeBatch(db);
-          messagesToMarkAsRead.forEach((msgId) => {
-            const msgRef = doc(db, "messages", msgId);
-            batch.update(msgRef, { status: "read" });
-          });
-          await batch.commit();
-        } catch (error) {
-          console.error("Ошибка при обновлении статуса:", error);
-        }
-      }
-
-      // --- ЛОГИКА ЗВУКОВОГО УВЕДОМЛЕНИЯ ---
-      if (isFirstLoad.current) {
-        // Если это самая первая загрузка чата - просто молча показываем сообщения
-        isFirstLoad.current = false;
-      } else {
-        // Если это НЕ первая загрузка, значит прилетело новое сообщение в реальном времени!
-        const lastMessage = msgs[msgs.length - 1];
-
-        // Проверяем: если сообщение существует и его отправил НЕ текущий пользователь
-        if (lastMessage && lastMessage.senderId !== currentUser.uid) {
-          // Создаем аудио (здесь я вставил прямую ссылку на приятный звук "дзынь")
-          const audio = new Audio(
-            "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3",
-          );
-          // Пробуем проиграть звук (браузеры могут блокировать звук, если вкладка неактивна, поэтому ловим ошибку)
-          audio
-            .play()
-            .catch((err) =>
-              console.log(
-                "Автовоспроизведение звука заблокировано браузером",
-                err,
-              ),
-            );
-        }
-      }
-      // ------------------------------------
-
-      setTimeout(
-        () => scrollRef.current?.scrollIntoView({ behavior: "smooth" }),
-        100,
-      );
+    audio.play().catch((err) => {
+      console.log("Автовоспроизведение звука заблокировано браузером", err);
     });
 
-    return () => unsubscribe();
-  }, [chatId, currentUser.uid]); // Не забудь добавить currentUser.uid в зависимости
+    setTimeout(
+      () => scrollRef.current?.scrollIntoView({ behavior: "smooth" }),
+      100,
+    );
+  }, []);
 
-  // 2. ОТПРАВЛЯЕМ СООБЩЕНИЕ (с шифрованием и статусом)
+  const { messages } = useChatMessages(chatId, currentUser?.uid, {
+    onNewIncomingMessage: handleIncomingMessage,
+  });
+
+  const { isPartnerTyping, handleTyping, resetTyping } = useTypingStatus(
+    chatId,
+    currentUser?.uid,
+    selectedUser?.uid,
+  );
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!message.trim() || !chatId) return;
 
+    resetTyping();
+
     const text = message;
-    setMessage(""); // Мгновенно очищаем поле для лучшего UX
+    setMessage("");
 
     try {
-      // Шифруем сообщение перед отправкой
       const encryptedText = encryptMessage(text, chatId);
 
       await addDoc(collection(db, "messages"), {
         chatId,
         senderId: currentUser.uid,
-        text: encryptedText, // Отправляем зашифрованный текст
-        status: "sent", // Добавляем статус "отправлено"
+        text: encryptedText,
+        status: "sent",
         createdAt: serverTimestamp(),
       });
-
-      // После успешной отправки сбрасываем статус печати сразу
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      if (myTypingRef.current) {
-        set(myTypingRef.current, false).catch((error) => {
-          console.error("Ошибка сброса статуса печати после отправки:", error);
-        });
-      }
-      setIsTyping(false);
     } catch (error) {
       console.error("Ошибка при отправке:", error);
     }
   };
 
-  // 3. Отправка изображения через ImgBB
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file || !chatId) return;
 
     setIsUploading(true);
-
     const formData = new FormData();
     formData.append("image", file);
 
@@ -179,13 +103,12 @@ const ChatWindow = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Сохраняем ссылку в БД
         await addDoc(collection(db, "messages"), {
           chatId,
           senderId: currentUser.uid,
           text: "",
-          imageUrl: data.data.url, // Новое поле для картинки
-          status: "sent", // Добавляем статус "отправлено"
+          imageUrl: data.data.url,
+          status: "sent",
           createdAt: serverTimestamp(),
         });
       }
@@ -193,17 +116,18 @@ const ChatWindow = () => {
       console.error("Ошибка при загрузке картинки:", error);
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (input) {
+        input.value = "";
+      }
     }
   };
 
-  //4. --- ЛОГИКА УДАЛЕНИЯ СООБЩЕНИЙ ---
   const handleDeleteForEveryone = async () => {
     if (!messageToDelete) return;
+
     try {
-      // Физически удаляем документ из базы
       await deleteDoc(doc(db, "messages", messageToDelete.id));
-      setMessageToDelete(null); // Закрываем окно
+      setMessageToDelete(null);
     } catch (error) {
       console.error("Ошибка при удалении у всех:", error);
     }
@@ -211,86 +135,16 @@ const ChatWindow = () => {
 
   const handleDeleteForMe = async () => {
     if (!messageToDelete) return;
+
     try {
-      // Записываем ID текущего пользователя в черный список этого сообщения
       await updateDoc(doc(db, "messages", messageToDelete.id), {
         deletedFor: arrayUnion(currentUser.uid),
       });
-      setMessageToDelete(null); // Закрываем окно
+      setMessageToDelete(null);
     } catch (error) {
       console.error("Ошибка при удалении у себя:", error);
     }
   };
-
-  //5. --- ЛОГИКА СТАТУСА "ПЕЧАТАЕТ..." ---
-  useEffect(() => {
-    if (!chatId || !selectedUser) return;
-    // Путь к статусу печати собеседника в этом конкретном чате
-    const partnerTypingRef = ref(rtdb, `typing/${chatId}/${selectedUser.uid}`);
-
-    const unsubscribe = onValue(partnerTypingRef, (snapshot) => {
-      setIsPartnerTyping(snapshot.val() === true);
-    });
-
-    return () => unsubscribe();
-  }, [chatId, selectedUser]);
-
-  useEffect(() => {
-    if (isPartnerTyping) {
-      setTimeout(() => {
-        scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 50);
-    }
-  }, [isPartnerTyping]);
-
-  // Настраиваем мой RTDB-референс для статуса печати и onDisconnect
-  useEffect(() => {
-    if (!chatId || !currentUser) return;
-
-    myTypingRef.current = ref(rtdb, `typing/${chatId}/${currentUser.uid}`);
-    onDisconnect(myTypingRef.current).set(false);
-
-    return () => {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      if (myTypingRef.current) {
-        set(myTypingRef.current, false).catch((error) => {
-          console.error(
-            "Ошибка сброса статуса печати при размонтировании:",
-            error,
-          );
-        });
-      }
-      setIsTyping(false);
-      myTypingRef.current = null;
-    };
-  }, [chatId, currentUser]);
-
-  // Функция обновления МОЕГО статуса печати
-  const handleTyping = () => {
-    if (!chatId || !currentUser || !myTypingRef.current) return;
-
-    // Не пишем true в RTDB заново, если уже в состоянии печати
-    if (!isTyping) {
-      set(myTypingRef.current, true).catch((error) => {
-        console.error("Ошибка установки статуса печати:", error);
-      });
-      setIsTyping(true);
-    }
-
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
-    // Через 3 секунды бездействия сбрасываем статус
-    typingTimeoutRef.current = setTimeout(() => {
-      if (myTypingRef.current) {
-        set(myTypingRef.current, false).catch((error) => {
-          console.error("Ошибка сброса статуса печати:", error);
-        });
-      }
-      setIsTyping(false);
-    }, 3000);
-  };
-
-  // ---------------------------------
 
   if (!selectedUser) {
     return (
@@ -311,7 +165,6 @@ const ChatWindow = () => {
     <div
       className={`flex-col bg-gray-50 ${!selectedUser ? "hidden md:flex" : "flex w-full"} md:flex-1`}
     >
-      {/* Шапка чата */}
       <div className="flex items-center space-x-3 border-b border-gray-200 bg-white p-4 shadow-sm">
         <button
           onClick={resetChat}
@@ -339,131 +192,15 @@ const ChatWindow = () => {
         </h2>
       </div>
 
-      {/* Область сообщений */}
       <div className="relative flex-1 overflow-hidden">
-        <div className="absolute inset-0 overflow-y-auto p-4 space-y-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-80 pb-28">
-          {messages
-            .filter((msg) => !msg.deletedFor?.includes(currentUser.uid)) // Фильтруем сообщения, удаленные для текущего пользователя
-            .map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex ${msg.senderId === currentUser.uid ? "justify-end" : "justify-start"}`}
-                onClick={() => setMessageToDelete(msg)}
-                title="Нажмите, чтобы удалить"
-              >
-                <div
-                  className={`max-w-[70%] rounded-lg px-4 py-2 shadow-sm ${
-                    msg.senderId === currentUser.uid
-                      ? "bg-blue-500 text-white rounded-br-none"
-                      : "bg-white text-gray-800 rounded-bl-none"
-                  }`}
-                >
-                  {/* Если в сообщении есть картинка - показываем её */}
-                  {msg.imageUrl && (
-                    <img
-                      src={msg.imageUrl}
-                      alt="Вложение"
-                      className="rounded-md max-w-full h-auto mb-1 max-h-64 object-cover"
-                    />
-                  )}
+        <MessagesList
+          messages={messages}
+          currentUserUid={currentUser?.uid}
+          chatId={chatId}
+          onMessageClick={setMessageToDelete}
+          scrollRef={scrollRef}
+        />
 
-                  {/* Если есть текст - показываем расшифрованный текст */}
-                  {msg.text && (
-                    <p className="text-sm">
-                      {decryptMessage(msg.text, chatId)}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between gap-2 mt-1">
-                    <p
-                      className={`text-[10px] ${
-                        msg.senderId === currentUser.uid
-                          ? "text-blue-100"
-                          : "text-gray-400"
-                      }`}
-                    >
-                      {msg.createdAt?.toDate().toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                    {/* Галочки статуса (только для собственных сообщений отправителя) */}
-                    {msg.senderId === currentUser.uid && (
-                      <div className="flex gap-0.5">
-                        {msg.status === "read" ? (
-                          // Две синие галочки для "прочитано"
-                          <>
-                            <svg
-                              className="w-3 h-3 text-blue-300"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                            </svg>
-                            <svg
-                              className="w-3 h-3 text-blue-500"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                            </svg>
-                          </>
-                        ) : (
-                          // Одна серая галочка для "отправлено"
-                          <svg
-                            className="w-3 h-3 text-gray-400"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" />
-                          </svg>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          <div ref={scrollRef} />
-
-          {/* --- МОДАЛЬНОЕ ОКНО УДАЛЕНИЯ --- */}
-          {messageToDelete && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
-              <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl text-center">
-                <h3 className="mb-4 text-lg font-medium text-gray-900">
-                  Что сделать с сообщением?
-                </h3>
-                <div className="flex flex-col space-y-3">
-                  {/* Кнопка "Удалить у всех" показывается ТОЛЬКО если это твое сообщение */}
-                  {messageToDelete.senderId === currentUser.uid && (
-                    <button
-                      onClick={handleDeleteForEveryone}
-                      className="rounded-lg bg-red-100 py-2 font-medium text-red-600 hover:bg-red-200 transition-colors"
-                    >
-                      Удалить у всех
-                    </button>
-                  )}
-
-                  <button
-                    onClick={handleDeleteForMe}
-                    className="rounded-lg bg-yellow-100 py-2 font-medium text-yellow-700 hover:bg-yellow-200 transition-colors"
-                  >
-                    Удалить только у меня
-                  </button>
-
-                  <button
-                    onClick={() => setMessageToDelete(null)}
-                    className="rounded-lg bg-gray-100 py-2 font-medium text-gray-700 hover:bg-gray-200 transition-colors"
-                  >
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Индикатор "печатает..." */}
-        {/* absolute, чтобы индикатор не сжимал область сообщений */}
         <div
           className={`absolute left-4 bottom-2 inline-flex justify-start transition-all duration-300 ease-in-out ${
             isPartnerTyping
@@ -472,13 +209,10 @@ const ChatWindow = () => {
           }`}
         >
           <div className="bg-white text-gray-800 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm border border-gray-100 flex items-center space-x-3 w-fit">
-            {/* Мини-аватарка собеседника */}
-            <div className="h-6 w-6 rounded-full bg-gradient-to-r from-blue-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+            <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
               {selectedUser?.displayName?.charAt(0).toUpperCase() || "U"}
             </div>
-            {/* Текст */}
             <span className="text-sm font-medium text-gray-500">печатает</span>
-            {/* Анимированная волна из точек */}
             <div className="flex space-x-1.5 items-center pt-1">
               <div
                 className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"
@@ -497,57 +231,24 @@ const ChatWindow = () => {
         </div>
       </div>
 
-      {/* Ввод сообщения */}
-      <div className="border-t border-gray-200 bg-white p-4">
-        <form className="flex space-x-2" onSubmit={handleSendMessage}>
-          <input
-            type="text"
-            value={message}
-            onChange={(e) => {
-              setMessage(e.target.value);
-              handleTyping();
-            }}
-            placeholder="Напишите сообщение..."
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="rounded-lg bg-blue-600 px-6 py-2 font-semibold text-white hover:bg-blue-700 transition-colors"
-          >
-            Отправить
-          </button>
-          {/* Скрытый инпут для выбора файла */}
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-          />
+      <ChatInput
+        message={message}
+        onMessageChange={(value) => {
+          setMessage(value);
+          handleTyping();
+        }}
+        onSend={handleSendMessage}
+        onImageUpload={handleImageUpload}
+        isUploading={isUploading}
+      />
 
-          {/* Кнопка скрепки */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="rounded-full p-2 text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-              />
-            </svg>
-          </button>
-        </form>
-      </div>
+      <DeleteMessageModal
+        messageToDelete={messageToDelete}
+        currentUserUid={currentUser?.uid}
+        onDeleteForEveryone={handleDeleteForEveryone}
+        onDeleteForMe={handleDeleteForMe}
+        onCancel={() => setMessageToDelete(null)}
+      />
     </div>
   );
 };
