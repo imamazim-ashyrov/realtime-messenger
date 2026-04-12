@@ -32,7 +32,7 @@ const ChatWindow = () => {
     ? [currentUser.uid, selectedUser.uid].sort().join("_")
     : null;
 
-  const handleIncomingMessage = useCallback((lastMessage) => {
+  const playSendSound = useCallback(() => {
     const audio = new Audio(
       "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3",
     );
@@ -40,7 +40,9 @@ const ChatWindow = () => {
     audio.play().catch((err) => {
       console.log("Автовоспроизведение звука заблокировано браузером", err);
     });
+  }, []);
 
+  const handleIncomingMessage = useCallback(() => {
     setTimeout(
       () => scrollRef.current?.scrollIntoView({ behavior: "smooth" }),
       100,
@@ -76,6 +78,8 @@ const ChatWindow = () => {
         status: "sent",
         createdAt: serverTimestamp(),
       });
+
+      playSendSound();
     } catch (error) {
       console.error("Ошибка при отправке:", error);
     }
