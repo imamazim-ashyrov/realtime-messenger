@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuthStore } from "../../../store/authStore";
 import { useChatStore } from "../../../store/chatStore";
-import { db } from "../../../services/firebase";
+import { db, rtdb } from "../../../services/firebase";
 import { encryptMessage } from "../../../utils/crypto";
 import useChatMessages from "../../../hooks/useChatMessages";
 import useTypingStatus from "../../../hooks/useTypingStatus";
@@ -17,20 +17,69 @@ import {
   updateDoc,
   arrayUnion,
 } from "firebase/firestore";
+import { onValue, ref } from "firebase/database";
 
 const ChatWindow = () => {
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [messageToDelete, setMessageToDelete] = useState(null);
+  const [partnerStatus, setPartnerStatus] = useState(null);
   const scrollRef = useRef(null);
 
   const currentUser = useAuthStore((state) => state.user);
   const selectedUser = useChatStore((state) => state.selectedUser);
   const resetChat = useChatStore((state) => state.resetChat);
 
-  const chatId = selectedUser && currentUser
-    ? [currentUser.uid, selectedUser.uid].sort().join("_")
-    : null;
+  const chatId =
+    selectedUser && currentUser
+      ? [currentUser.uid, selectedUser.uid].sort().join("_")
+      : null;
+
+  useEffect(() => {
+    if (!selectedUser) return;
+
+    const statusRef = ref(rtdb, `status/${selectedUser.uid}`);
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setPartnerStatus(snapshot.val());
+      } else {
+        setPartnerStatus(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [selectedUser]);
+
+  const formatLastSeen = (timestamp) => {
+    if (!timestamp) return "";
+
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInMinutes = (now - date) / (1000 * 60);
+
+    // 1. Меньше минуты назад
+    if (diffInMinutes < 1) return "был(а) только что";
+
+    // Настройки для форматирования времени (только часы и минуты)
+    const timeOptions = { hour: "2-digit", minute: "2-digit" };
+
+    // 2. Текущие сутки (Сегодня) -> ПОКАЗЫВАЕМ ВРЕМЯ
+    if (date.toDateString() === now.toDateString()) {
+      // Можно написать "сегодня в HH:MM" или просто "в HH:MM", как в Telegram
+      return `был(а) сегодня в ${date.toLocaleTimeString([], timeOptions)}`;
+    }
+
+    // 3. Вчера -> БЕЗ ВРЕМЕНИ
+    const yesterday = new Date();
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return "был(а) вчера";
+    }
+
+    // 4. Более старые даты -> БЕЗ ВРЕМЕНИ (формат ДД.ММ.ГГГГ)
+    const dateOptions = { day: "2-digit", month: "2-digit", year: "numeric" };
+    return `был(а) ${date.toLocaleDateString([], dateOptions)}`;
+  };
 
   const playSendSound = useCallback(() => {
     const audio = new Audio(
@@ -166,34 +215,50 @@ const ChatWindow = () => {
   }
 
   return (
-    <div
-      className={`flex-col bg-gray-50 ${!selectedUser ? "hidden md:flex" : "flex w-full"} md:flex-1`}
-    >
-      <div className="flex items-center space-x-3 border-b border-gray-200 bg-white p-4 shadow-sm">
-        <button
-          onClick={resetChat}
-          className="md:hidden mr-2 rounded-full p-2 text-gray-500 hover:bg-gray-100 transition-colors"
-        >
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    <div className="flex h-full min-h-0 w-full flex-col bg-gray-50 md:flex-1">
+      <div className="flex flex-col gap-3 border-b border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={resetChat}
+            className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-100"
+            aria-label="Назад"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M15 19l-7-7 7-7"
-            />
-          </svg>
-        </button>
-        <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
-          {selectedUser.displayName?.charAt(0).toUpperCase()}
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-lg font-semibold text-white shadow-md">
+            {selectedUser.displayName?.charAt(0).toUpperCase()}
+          </div>
+
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-gray-900">
+              {selectedUser.displayName}
+            </h2>
+            <span
+              className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                partnerStatus?.state === "online"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {partnerStatus?.state === "online"
+                ? "в сети"
+                : formatLastSeen(partnerStatus?.last_changed)}
+            </span>
+          </div>
         </div>
-        <h2 className="text-lg font-medium text-gray-800">
-          {selectedUser.displayName}
-        </h2>
       </div>
 
       <div className="relative flex-1 overflow-hidden">
