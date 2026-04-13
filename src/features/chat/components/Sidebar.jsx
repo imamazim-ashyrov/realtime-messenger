@@ -1,12 +1,24 @@
 import { useEffect, useState } from "react";
 import { db } from "../../../services/firebase";
-import { collection, onSnapshot, query, where, orderBy, limit } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+  limit,
+} from "firebase/firestore";
 import { useAuthStore } from "../../../store/authStore";
 import { auth } from "../../../services/firebase";
 import { signOut } from "firebase/auth";
 import { useChatStore } from "../../../store/chatStore";
 import { rtdb } from "../../../services/firebase";
-import { ref, onValue, set, serverTimestamp as rtdbServerTimestamp } from "firebase/database";
+import {
+  ref,
+  onValue,
+  set,
+  serverTimestamp as rtdbServerTimestamp,
+} from "firebase/database";
 import { decryptMessage } from "../../../utils/crypto";
 
 // Функция для красивого вывода времени последнего сообщения
@@ -17,7 +29,13 @@ const formatTime = (timestamp) => {
 };
 
 // Отдельный компонент для каждого пользователя в списке
-const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnline }) => {
+const ChatListItem = ({
+  user,
+  currentUser,
+  selectedUser,
+  setSelectedUser,
+  isOnline,
+}) => {
   const [lastMessage, setLastMessage] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -25,13 +43,13 @@ const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnli
     if (!currentUser?.uid || !user?.uid) return;
 
     const chatId = [currentUser.uid, user.uid].sort().join("_");
-    
+
     // ОПТИМИЗАЦИЯ: Берем последние 20 сообщений, чтобы найти последнее и посчитать непрочитанные
     const q = query(
       collection(db, "messages"),
       where("chatId", "==", chatId),
       orderBy("createdAt", "desc"),
-      limit(20)
+      limit(20),
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -41,7 +59,7 @@ const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnli
         return;
       }
 
-      const docs = snapshot.docs.map(doc => doc.data());
+      const docs = snapshot.docs.map((doc) => doc.data());
       const latestMsg = docs[0];
 
       // 1. Расшифровываем последнее сообщение для превью
@@ -53,9 +71,9 @@ const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnli
 
       // 2. Считаем сколько сообщений не от нас и еще не прочитаны
       const unread = docs.filter(
-        (m) => m.senderId !== currentUser.uid && m.status !== "read"
+        (m) => m.senderId !== currentUser.uid && m.status !== "read",
       ).length;
-      
+
       setUnreadCount(unread);
     });
 
@@ -76,8 +94,10 @@ const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnli
         <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-lg font-bold shadow-sm">
           {user.displayName?.charAt(0).toUpperCase() || "U"}
         </div>
-        {isOnline && (
+        {isOnline ? (
           <div className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-green-500"></div>
+        ) : (
+          <div className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-gray-400"></div>
         )}
       </div>
 
@@ -88,7 +108,9 @@ const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnli
             {user.displayName}
           </h3>
           {lastMessage && (
-            <span className={`text-xs whitespace-nowrap ml-2 ${unreadCount > 0 ? "text-blue-500 font-bold" : "text-gray-400"}`}>
+            <span
+              className={`text-xs whitespace-nowrap ml-2 ${unreadCount > 0 ? "text-blue-500 font-bold" : "text-gray-400"}`}
+            >
               {formatTime(lastMessage.createdAt)}
             </span>
           )}
@@ -97,24 +119,57 @@ const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnli
         {/* Текст сообщения, галочки и бейдж непрочитанных */}
         <div className="flex justify-between items-center gap-2">
           <div className="flex items-center min-w-0 space-x-1">
-            
             {/* Если последнее сообщение отправил Я, показываем статус доставки (галочки) */}
             {lastMessage?.senderId === currentUser.uid && (
               <span className="flex-shrink-0 mr-0.5">
                 {(!lastMessage.status || lastMessage.status === "sent") && (
-                  <svg className="w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  <svg
+                    className="w-3.5 h-3.5 text-gray-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
                 )}
                 {lastMessage.status === "delivered" && (
-                  <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L7 17l-5-5"></path><path d="M22 10l-7.5 7.5L13 16"></path></svg>
+                  <svg
+                    className="w-4 h-4 text-gray-400"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6L7 17l-5-5"></path>
+                    <path d="M22 10l-7.5 7.5L13 16"></path>
+                  </svg>
                 )}
                 {lastMessage.status === "read" && (
-                  <svg className="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L7 17l-5-5"></path><path d="M22 10l-7.5 7.5L13 16"></path></svg>
+                  <svg
+                    className="w-4 h-4 text-blue-500"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 6L7 17l-5-5"></path>
+                    <path d="M22 10l-7.5 7.5L13 16"></path>
+                  </svg>
                 )}
               </span>
             )}
 
             {/* Текст превью сообщения. Жирный, если есть непрочитанные */}
-            <p className={`text-sm truncate ${unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
+            <p
+              className={`text-sm truncate ${unreadCount > 0 ? "text-gray-900 font-semibold" : "text-gray-500"}`}
+            >
               {lastMessage ? lastMessage.text : "Нет сообщений"}
             </p>
           </div>
@@ -122,7 +177,7 @@ const ChatListItem = ({ user, currentUser, selectedUser, setSelectedUser, isOnli
           {/* Бейдж количества непрочитанных (как в WhatsApp) */}
           {unreadCount > 0 && (
             <div className="flex-shrink-0 bg-blue-500 text-white text-[11px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center shadow-sm">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {unreadCount > 99 ? "99+" : unreadCount}
             </div>
           )}
         </div>
