@@ -97,6 +97,7 @@ const ChatListItem = ({
         {isOnline ? (
           <div className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-green-500"></div>
         ) : (
+
           <div className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white bg-gray-400"></div>
         )}
       </div>
@@ -177,7 +178,7 @@ const ChatListItem = ({
           {/* Бейдж количества непрочитанных (как в WhatsApp) */}
           {unreadCount > 0 && (
             <div className="flex-shrink-0 bg-blue-500 text-white text-[11px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center shadow-sm">
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {unreadCount > 10 ? "10+" : unreadCount}
             </div>
           )}
         </div>
