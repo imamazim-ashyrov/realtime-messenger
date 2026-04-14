@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { db } from "../../../services/firebase";
 import {
   collection,
@@ -25,7 +25,34 @@ import { decryptMessage } from "../../../utils/crypto";
 const formatTime = (timestamp) => {
   if (!timestamp) return "";
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const messageDayStart = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
+  const diffInDays = Math.floor(
+    (todayStart.getTime() - messageDayStart.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (diffInDays === 0) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  if (diffInDays === 1) {
+    return "Вчера";
+  }
+
+  if (diffInDays > 1 && diffInDays < 7) {
+    return date.toLocaleDateString("ru-RU", { weekday: "short" });
+  }
+
+  return date.toLocaleDateString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  });
 };
 
 // Отдельный компонент для каждого пользователя в списке
@@ -35,6 +62,7 @@ const ChatListItem = ({
   selectedUser,
   setSelectedUser,
   isOnline,
+  onLastMessageUpdate,
 }) => {
   const [lastMessage, setLastMessage] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -68,6 +96,7 @@ const ChatListItem = ({
       else if (latestMsg.imageUrl) previewText = "📷 Фотография";
 
       setLastMessage({ ...latestMsg, text: previewText });
+      onLastMessageUpdate?.(user.uid, latestMsg.createdAt);
 
       // 2. Считаем сколько сообщений не от нас и еще не прочитаны
       const unread = docs.filter(
@@ -78,7 +107,7 @@ const ChatListItem = ({
     });
 
     return () => unsubscribe();
-  }, [currentUser.uid, user.uid]);
+  }, [currentUser.uid, onLastMessageUpdate, user.uid]);
 
   const isSelected = selectedUser?.uid === user.uid;
 
@@ -191,9 +220,31 @@ const Sidebar = () => {
   const [users, setUsers] = useState([]);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [userStatuses, setUserStatuses] = useState({});
+  const [lastMessageTimestamps, setLastMessageTimestamps] = useState({});
   const currentUser = useAuthStore((state) => state.user);
   const setSelectedUser = useChatStore((state) => state.setSelectedUser);
   const selectedUser = useChatStore((state) => state.selectedUser); // Достаем и само значение для подсветки
+
+  const handleLastMessageUpdate = useCallback((uid, createdAt) => {
+    const timestamp = createdAt?.toMillis
+      ? createdAt.toMillis()
+      : new Date(createdAt || 0).getTime();
+
+    setLastMessageTimestamps((prev) => {
+      if (prev[uid] === timestamp) return prev;
+      return { ...prev, [uid]: timestamp || 0 };
+    });
+  }, []);
+
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const timeA = lastMessageTimestamps[a.uid] || 0;
+      const timeB = lastMessageTimestamps[b.uid] || 0;
+
+      if (timeA !== timeB) return timeB - timeA;
+      return (a.displayName || "").localeCompare(b.displayName || "", "ru");
+    });
+  }, [lastMessageTimestamps, users]);
 
   const handleLogout = async () => {
     try {
@@ -266,7 +317,7 @@ const Sidebar = () => {
       {/* Список контактов */}
       <div className="flex-1 overflow-y-auto">
         {users.length > 0 ? (
-          users.map((user) => {
+          sortedUsers.map((user) => {
             const isUserOnline = userStatuses[user.uid]?.state === "online";
 
             return (
@@ -277,6 +328,7 @@ const Sidebar = () => {
                 selectedUser={selectedUser}
                 setSelectedUser={setSelectedUser}
                 isOnline={isUserOnline}
+                onLastMessageUpdate={handleLastMessageUpdate}
               />
             );
           })
