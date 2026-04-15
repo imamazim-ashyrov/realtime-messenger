@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { enhanceMessageWithAI } from "../../../services/gemini"; // Убедись, что путь правильный
+import { enhanceMessageWithAI } from "../../../services/ai"; // Убедись, что путь правильный
 
 const ChatInput = ({
   message,
