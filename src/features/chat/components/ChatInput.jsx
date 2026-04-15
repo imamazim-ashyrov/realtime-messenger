@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { enhanceMessageWithAI } from "../../../services/ai"; // Убедись, что путь правильный
 
 const ChatInput = ({
@@ -9,10 +9,19 @@ const ChatInput = ({
   isUploading,
 }) => {
   const fileInputRef = useRef(null);
+  const messageInputRef = useRef(null);
   
   // Состояния для ИИ
   const [showAiMenu, setShowAiMenu] = useState(false);
   const [isAiLoading, setIsAiLoading] = useState(false);
+
+  useEffect(() => {
+    if (!messageInputRef.current) return;
+
+    messageInputRef.current.style.height = "auto";
+    const nextHeight = Math.min(messageInputRef.current.scrollHeight, 140);
+    messageInputRef.current.style.height = `${nextHeight}px`;
+  }, [message]);
 
   // Обработчик ИИ-действий
   const handleAiAction = async (action) => {
@@ -32,18 +41,27 @@ const ChatInput = ({
     setIsAiLoading(false);
   };
 
+  const handleMessageKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSend(e);
+    }
+  };
+
   return (
     <div className="border-t border-gray-200 bg-white p-4">
-      <form className="flex items-center gap-2" onSubmit={onSend}>
+      <form className="flex items-end gap-2" onSubmit={onSend}>
         
         {/* Контейнер ввода текста и кнопок */}
-        <div className="flex flex-1 items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-100">
-          <input
-            type="text"
+        <div className="flex flex-1 items-end gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-100">
+          <textarea
+            ref={messageInputRef}
             value={message}
             onChange={(e) => onMessageChange(e.target.value)}
+            onKeyDown={handleMessageKeyDown}
             placeholder="Напишите сообщение..."
-            className="min-h-11 w-full bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            rows={1}
+            className="max-h-[140px] min-h-[44px] w-full resize-none overflow-y-auto bg-transparent py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
           
           {/* --- МАГИЧЕСКАЯ КНОПКА ИИ --- */}
