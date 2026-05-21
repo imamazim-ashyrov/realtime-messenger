@@ -2,11 +2,11 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuthStore } from "../../../store/authStore";
 import { useChatStore } from "../../../store/chatStore";
 import { db, rtdb } from "../../../services/firebase";
-import { encryptMessage } from "../../../utils/crypto";
+import { encryptMessage, decryptMessage } from "../../../utils/crypto";
 import useChatMessages from "../../../hooks/useChatMessages";
 import useTypingStatus from "../../../hooks/useTypingStatus";
 import MessagesList from "./MessagesList";
-import DeleteMessageModal from "./DeleteMessageModal";
+import MessageActionsModal from "./MessageActionsModal";
 import ChatInput from "./ChatInput";
 import {
   collection,
@@ -16,13 +16,15 @@ import {
   deleteDoc,
   updateDoc,
   arrayUnion,
+  arrayRemove,
 } from "firebase/firestore";
 import { onValue, ref } from "firebase/database";
 
 const ChatWindow = () => {
   const [message, setMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
-  const [messageToDelete, setMessageToDelete] = useState(null);
+  const [activeMessage, setActiveMessage] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
   const [partnerStatus, setPartnerStatus] = useState(null);
   const scrollRef = useRef(null);
 
@@ -115,22 +117,55 @@ const ChatWindow = () => {
     resetTyping();
 
     const text = message;
+    const reply = replyingTo;
     setMessage("");
+    setReplyingTo(null);
 
     try {
       const encryptedText = encryptMessage(text, chatId);
 
-      await addDoc(collection(db, "messages"), {
+      const newMessage = {
         chatId,
         senderId: currentUser.uid,
         text: encryptedText,
         status: "sent",
         createdAt: serverTimestamp(),
-      });
+      };
+
+      if (reply) {
+        newMessage.replyTo = {
+          messageId: reply.id,
+          text: reply.text || "",
+          hasImage: !!reply.imageUrl,
+          senderName:
+            reply.senderId === currentUser.uid
+              ? "Вы"
+              : selectedUser.displayName || "Собеседник",
+        };
+      }
+
+      await addDoc(collection(db, "messages"), newMessage);
 
       playSendSound();
     } catch (error) {
       console.error("Ошибка при отправке:", error);
+    }
+  };
+
+  const handleToggleReaction = async (targetMessage, emoji) => {
+    if (!targetMessage) return;
+
+    const reactedUsers = targetMessage.reactions?.[emoji] || [];
+    const alreadyReacted = reactedUsers.includes(currentUser.uid);
+
+    try {
+      await updateDoc(doc(db, "messages", targetMessage.id), {
+        [`reactions.${emoji}`]: alreadyReacted
+          ? arrayRemove(currentUser.uid)
+          : arrayUnion(currentUser.uid),
+      });
+    } catch (error) {
+      console.error("Ошибка при изменении реакции:", error);
     }
   };
 
@@ -176,24 +211,24 @@ const ChatWindow = () => {
   };
 
   const handleDeleteForEveryone = async () => {
-    if (!messageToDelete) return;
+    if (!activeMessage) return;
 
     try {
-      await deleteDoc(doc(db, "messages", messageToDelete.id));
-      setMessageToDelete(null);
+      await deleteDoc(doc(db, "messages", activeMessage.id));
+      setActiveMessage(null);
     } catch (error) {
       console.error("Ошибка при удалении у всех:", error);
     }
   };
 
   const handleDeleteForMe = async () => {
-    if (!messageToDelete) return;
+    if (!activeMessage) return;
 
     try {
-      await updateDoc(doc(db, "messages", messageToDelete.id), {
+      await updateDoc(doc(db, "messages", activeMessage.id), {
         deletedFor: arrayUnion(currentUser.uid),
       });
-      setMessageToDelete(null);
+      setActiveMessage(null);
     } catch (error) {
       console.error("Ошибка при удалении у себя:", error);
     }
@@ -266,7 +301,8 @@ const ChatWindow = () => {
           messages={messages}
           currentUserUid={currentUser?.uid}
           chatId={chatId}
-          onMessageClick={setMessageToDelete}
+          onMessageClick={setActiveMessage}
+          onToggleReaction={handleToggleReaction}
           scrollRef={scrollRef}
         />
 
@@ -309,14 +345,36 @@ const ChatWindow = () => {
         onSend={handleSendMessage}
         onImageUpload={handleImageUpload}
         isUploading={isUploading}
+        replyContext={
+          replyingTo
+            ? {
+                senderName:
+                  replyingTo.senderId === currentUser.uid
+                    ? "Вы"
+                    : selectedUser.displayName || "Собеседник",
+                preview: replyingTo.text
+                  ? decryptMessage(replyingTo.text, chatId)
+                  : "📷 Фотография",
+              }
+            : null
+        }
+        onCancelReply={() => setReplyingTo(null)}
       />
 
-      <DeleteMessageModal
-        messageToDelete={messageToDelete}
+      <MessageActionsModal
+        message={activeMessage}
         currentUserUid={currentUser?.uid}
+        onReact={(emoji) => {
+          handleToggleReaction(activeMessage, emoji);
+          setActiveMessage(null);
+        }}
+        onReply={() => {
+          setReplyingTo(activeMessage);
+          setActiveMessage(null);
+        }}
         onDeleteForEveryone={handleDeleteForEveryone}
         onDeleteForMe={handleDeleteForMe}
-        onCancel={() => setMessageToDelete(null)}
+        onCancel={() => setActiveMessage(null)}
       />
     </div>
   );

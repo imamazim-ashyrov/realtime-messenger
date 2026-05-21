@@ -1,6 +1,6 @@
 import MessageBubble from "./MessageBubble";
 
-const MessagesList = ({ messages, currentUserUid, chatId, onMessageClick, scrollRef }) => {
+const MessagesList = ({ messages, currentUserUid, chatId, onMessageClick, onToggleReaction, scrollRef }) => {
   const visibleMessages = messages.filter((msg) => !msg.deletedFor?.includes(currentUserUid));
   let latestReadOwnMessage = null;
   let latestReadOwnMessageIndex = -1;
@@ -24,9 +24,11 @@ const MessagesList = ({ messages, currentUserUid, chatId, onMessageClick, scroll
           key={msg.id}
           msg={msg}
           chatId={chatId}
+          currentUserUid={currentUserUid}
           isCurrentUser={msg.senderId === currentUserUid}
           isLatestReadOwnMessage={showReadReceipt && msg.id === latestReadOwnMessage?.id}
           onClick={() => onMessageClick(msg)}
+          onToggleReaction={(emoji) => onToggleReaction(msg, emoji)}
         />
       ))}
       <div ref={scrollRef} />
