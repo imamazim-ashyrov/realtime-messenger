@@ -1,8 +1,19 @@
+import { useEffect } from "react";
+import { playRingtone } from "../../../utils/callSounds";
+
 /**
  * Полноэкранная модалка входящего звонка.
  * Рендерится глобально из ChatPage, когда в callStore появляется incomingCall.
  */
 const IncomingCallModal = ({ call, onAccept, onReject }) => {
+  // Рингтон — пока висит модалка. Если браузер блокирует автоплей
+  // (нет user-gesture с момента загрузки), звука не будет — это норма.
+  useEffect(() => {
+    if (!call) return undefined;
+    const stop = playRingtone();
+    return stop;
+  }, [call]);
+
   if (!call) return null;
   const name = call.callerInfo?.displayName || "Пользователь";
   const initial = name.charAt(0).toUpperCase();

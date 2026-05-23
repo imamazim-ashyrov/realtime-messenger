@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { playDialTone } from "../../../utils/callSounds";
 
 const formatDuration = (sec) => {
   const m = Math.floor(sec / 60);
@@ -17,6 +18,15 @@ const ActiveCallOverlay = ({ call, isMuted, onToggleMute, onEnd }) => {
     if (!call) return undefined;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
+  }, [call]);
+
+  // Гудок дозвона: пока мы звоним, а собеседник ещё не принял
+  useEffect(() => {
+    if (!call || call.status !== "ringing" || call.role !== "caller") {
+      return undefined;
+    }
+    const stop = playDialTone();
+    return stop;
   }, [call]);
 
   if (!call) return null;
