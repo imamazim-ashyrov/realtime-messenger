@@ -34,6 +34,37 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.members;
     }
 
+    // Звонки. Участникам разрешён read/write, плюс ICE-кандидаты
+    // в подколлекциях callerCandidates / calleeCandidates.
+    //
+    // Правило сознательно сверяется по тем же полям (callerUid/calleeUid),
+    // что и query subscribeIncomingCalls — иначе Firestore не сможет
+    // статически доказать, что query ограничивает выдачу разрешёнными
+    // документами, и отклонит подписку с permission-denied.
+    match /calls/{callId} {
+      function isParticipant() {
+        return isSignedIn() && (
+          resource.data.callerUid == request.auth.uid
+          || resource.data.calleeUid == request.auth.uid
+        );
+      }
+
+      allow read, update: if isParticipant();
+      allow create: if isSignedIn()
+        && request.resource.data.callerUid == request.auth.uid;
+
+      // ICE-кандидаты в подколлекциях callerCandidates / calleeCandidates
+      match /{candidates}/{candId} {
+        function inParentCall() {
+          return isSignedIn() && (
+            get(/databases/$(database)/documents/calls/$(callId)).data.callerUid == request.auth.uid
+            || get(/databases/$(database)/documents/calls/$(callId)).data.calleeUid == request.auth.uid
+          );
+        }
+        allow read, create: if inParentCall();
+      }
+    }
+
     // Сообщения
     match /messages/{messageId} {
       // Читать может только участник чата
