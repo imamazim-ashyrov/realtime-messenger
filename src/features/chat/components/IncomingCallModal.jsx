@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { playRingtone } from "../../../utils/callSounds";
+import Avatar from "../../../components/Avatar";
 
 /**
  * Полноэкранная модалка входящего звонка.
@@ -16,13 +17,13 @@ const IncomingCallModal = ({ call, onAccept, onReject }) => {
 
   if (!call) return null;
   const name = call.callerInfo?.displayName || "Пользователь";
-  const initial = name.charAt(0).toUpperCase();
+  const avatarUrl = call.callerInfo?.avatarUrl;
 
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/70 px-4">
       <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-gray-900 border dark:border-gray-800 p-8 shadow-2xl text-center">
-        <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-blue-600 text-white text-4xl font-bold shadow-lg animate-pulse">
-          {initial}
+        <div className="mx-auto mb-4 w-fit">
+          <Avatar url={avatarUrl} displayName={name} size="xl" pulse />
         </div>
         <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
           Входящий звонок

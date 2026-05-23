@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { db } from "../../../services/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
+import Avatar from "../../../components/Avatar";
 
 /**
  * Модалка старта нового чата: список всех пользователей с поиском по имени.
@@ -73,9 +74,7 @@ const NewChatModal = ({ currentUser, onSelectUser, onClose }) => {
                 onClick={() => onSelectUser(user)}
                 className="flex w-full items-center gap-3 border-b border-gray-50 dark:border-gray-800 p-3 text-left transition-colors hover:bg-blue-50 dark:hover:bg-gray-800"
               >
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-blue-600 text-white font-bold shadow-sm">
-                  {user.displayName?.charAt(0).toUpperCase() || "U"}
-                </div>
+                <Avatar url={user.avatarUrl} displayName={user.displayName} size="md" />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                     {user.displayName || "Пользователь"}

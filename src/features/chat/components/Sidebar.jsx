@@ -17,6 +17,8 @@ import useNotifications from "../../../hooks/useNotifications";
 import useChatNotifications from "../../../hooks/useChatNotifications";
 import useTheme from "../../../hooks/useTheme";
 import NewChatModal from "./NewChatModal";
+import ProfileModal from "./ProfileModal";
+import Avatar from "../../../components/Avatar";
 
 const formatTime = (timestamp) => {
   if (!timestamp) return "";
@@ -101,16 +103,12 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
           : "hover:bg-blue-50 dark:hover:bg-gray-800/60"
       }`}
     >
-      <div className="relative shrink-0">
-        <div className="h-12 w-12 rounded-full bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-lg font-bold shadow-sm">
-          {peerInfo.displayName?.charAt(0).toUpperCase() || "U"}
-        </div>
-        <div
-          className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-gray-900 ${
-            isOnline ? "bg-green-500" : "bg-gray-400"
-          }`}
-        ></div>
-      </div>
+      <Avatar
+        url={peerInfo.avatarUrl}
+        displayName={peerInfo.displayName}
+        size="md"
+        online={isOnline}
+      />
 
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-1">
@@ -156,6 +154,7 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
 const Sidebar = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const [userStatuses, setUserStatuses] = useState({});
   const currentUser = useAuthStore((state) => state.user);
   const setSelectedUser = useChatStore((state) => state.setSelectedUser);
@@ -211,12 +210,23 @@ const Sidebar = () => {
     >
       {/* Шапка */}
       <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-950 p-4">
-        <div className="flex flex-col min-w-0">
-          <span className="text-xs text-gray-500 dark:text-gray-400">Вы вошли:</span>
-          <h2 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
-            {currentUser.displayName || currentUser.email}
-          </h2>
-        </div>
+        <button
+          onClick={() => setShowProfile(true)}
+          className="flex items-center gap-3 min-w-0 cursor-pointer rounded-lg p-1 -m-1 transition hover:bg-gray-200 dark:hover:bg-gray-800"
+          title="Профиль"
+        >
+          <Avatar
+            url={currentUser.photoURL || currentUser.avatarUrl}
+            displayName={currentUser.displayName || currentUser.email}
+            size="sm"
+          />
+          <div className="flex flex-col min-w-0 text-left">
+            <span className="text-xs text-gray-500 dark:text-gray-400">Вы вошли:</span>
+            <h2 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
+              {currentUser.displayName || currentUser.email}
+            </h2>
+          </div>
+        </button>
         <div className="flex items-center gap-2">
           {/* Переключатель темы */}
           <button
@@ -331,6 +341,13 @@ const Sidebar = () => {
             setShowNewChat(false);
           }}
           onClose={() => setShowNewChat(false)}
+        />
+      )}
+
+      {showProfile && (
+        <ProfileModal
+          currentUser={currentUser}
+          onClose={() => setShowProfile(false)}
         />
       )}
 

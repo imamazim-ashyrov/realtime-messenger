@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { playDialTone } from "../../../utils/callSounds";
+import Avatar from "../../../components/Avatar";
 
 const formatDuration = (sec) => {
   const m = Math.floor(sec / 60);
@@ -32,19 +33,15 @@ const ActiveCallOverlay = ({ call, isMuted, onToggleMute, onEnd }) => {
   if (!call) return null;
 
   const name = call.peer?.displayName || "Пользователь";
-  const initial = name.charAt(0).toUpperCase();
+  const avatarUrl = call.peer?.avatarUrl;
   const isRinging = call.status === "ringing";
   const elapsed = isRinging ? 0 : Math.max(0, Math.floor((now - call.startedAt) / 1000));
 
   return (
     <div className="fixed inset-0 z-100 flex flex-col items-center justify-between bg-gray-950 px-6 py-12 text-white">
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div
-          className={`mb-6 flex h-32 w-32 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-blue-600 text-5xl font-bold shadow-2xl ${
-            isRinging ? "animate-pulse" : ""
-          }`}
-        >
-          {initial}
+        <div className="mb-6">
+          <Avatar url={avatarUrl} displayName={name} size="2xl" pulse={isRinging} />
         </div>
         <p className="text-sm uppercase tracking-wide text-gray-400 mb-2">
           {isRinging ? "Вызов…" : "В разговоре"}

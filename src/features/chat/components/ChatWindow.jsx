@@ -18,6 +18,7 @@ import useTypingStatus from "../../../hooks/useTypingStatus";
 import MessagesList from "./MessagesList";
 import MessageActionsModal from "./MessageActionsModal";
 import ChatInput from "./ChatInput";
+import Avatar from "../../../components/Avatar";
 import { onValue, ref } from "firebase/database";
 
 const ChatWindow = ({ onStartCall }) => {
@@ -271,9 +272,11 @@ const ChatWindow = ({ onStartCall }) => {
             </svg>
           </button>
 
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-indigo-600 text-lg font-semibold text-white shadow-md">
-            {selectedUser.displayName?.charAt(0).toUpperCase()}
-          </div>
+          <Avatar
+            url={selectedUser.avatarUrl}
+            displayName={selectedUser.displayName}
+            size="md"
+          />
 
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">
