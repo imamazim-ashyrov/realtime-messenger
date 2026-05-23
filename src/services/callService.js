@@ -9,7 +9,6 @@ import {
   onSnapshot,
   query,
   where,
-  orderBy,
 } from "firebase/firestore";
 
 /**
@@ -80,37 +79,55 @@ export const addIceCandidate = async (callId, role, candidate) => {
   await addDoc(collection(db, "calls", callId, subPath), candidate);
 };
 
+const logError = (where) => (err) =>
+  console.error(`[callService] ${where} failed:`, err?.code || err?.message || err);
+
 /** Подписаться на чужие ICE-кандидаты. */
 export const subscribeRemoteCandidates = (callId, myRole, onCandidate) => {
   // Я caller → слушаю calleeCandidates, и наоборот
   const subPath = myRole === "caller" ? "calleeCandidates" : "callerCandidates";
-  return onSnapshot(collection(db, "calls", callId, subPath), (snap) => {
-    snap.docChanges().forEach((change) => {
-      if (change.type === "added") onCandidate(change.doc.data());
-    });
-  });
+  return onSnapshot(
+    collection(db, "calls", callId, subPath),
+    (snap) => {
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") onCandidate(change.doc.data());
+      });
+    },
+    logError(`subscribeRemoteCandidates(${subPath})`),
+  );
 };
 
 /** Подписаться на сам документ звонка (status, answer, endedAt). */
 export const subscribeCallDoc = (callId, onChange) =>
-  onSnapshot(doc(db, "calls", callId), (snap) => {
-    if (snap.exists()) onChange({ id: snap.id, ...snap.data() });
-    else onChange(null);
-  });
+  onSnapshot(
+    doc(db, "calls", callId),
+    (snap) => {
+      if (snap.exists()) onChange({ id: snap.id, ...snap.data() });
+      else onChange(null);
+    },
+    logError("subscribeCallDoc"),
+  );
 
 /** Слушать входящие «звонящие» звонки на мой uid. */
 export const subscribeIncomingCalls = (myUid, onIncoming) => {
+  // orderBy здесь убран намеренно: одновременно несколько ringing-вызовов
+  // на одного пользователя у нас невозможны (менеджер авто-отклоняет «занято»),
+  // а пустой orderBy снимает необходимость в композитном индексе и устраняет
+  // редкие гонки с serverTimestamp, который локально на миллисекунду = null.
   const q = query(
     collection(db, "calls"),
     where("calleeUid", "==", myUid),
     where("status", "==", "ringing"),
-    orderBy("createdAt", "desc"),
   );
-  return onSnapshot(q, (snap) => {
-    snap.docChanges().forEach((change) => {
-      if (change.type === "added") {
-        onIncoming({ id: change.doc.id, ...change.doc.data() });
-      }
-    });
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      snap.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          onIncoming({ id: change.doc.id, ...change.doc.data() });
+        }
+      });
+    },
+    logError("subscribeIncomingCalls"),
+  );
 };

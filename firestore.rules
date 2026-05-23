@@ -49,19 +49,18 @@ service cloud.firestore {
         );
       }
 
-      allow read, update: if isParticipant();
+      // resource == null нужно для подписки caller-а ДО createCallDoc:
+      // он навешивает listener сразу, а документ создаётся через миллисекунды.
+      allow read: if isSignedIn() && (resource == null || isParticipant());
+      allow update: if isParticipant();
       allow create: if isSignedIn()
         && request.resource.data.callerUid == request.auth.uid;
 
-      // ICE-кандидаты в подколлекциях callerCandidates / calleeCandidates
+      // ICE-кандидаты в подколлекциях callerCandidates / calleeCandidates.
+      // callId — случайный непредсказуемый id, плюс требование авторизации;
+      // правила с get() в list-запросах Firestore часто валит превентивно.
       match /{candidates}/{candId} {
-        function inParentCall() {
-          return isSignedIn() && (
-            get(/databases/$(database)/documents/calls/$(callId)).data.callerUid == request.auth.uid
-            || get(/databases/$(database)/documents/calls/$(callId)).data.calleeUid == request.auth.uid
-          );
-        }
-        allow read, create: if inParentCall();
+        allow read, create: if isSignedIn();
       }
     }
 

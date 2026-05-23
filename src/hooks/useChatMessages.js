@@ -27,40 +27,46 @@ const useChatMessages = (chatId, currentUserUid) => {
       limit(50),
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      if (canceled) return;
+    const unsubscribe = onSnapshot(
+      q,
+      async (snapshot) => {
+        if (canceled) return;
 
-      const msgs = [];
-      const messagesToMarkAsRead = [];
+        const msgs = [];
+        const messagesToMarkAsRead = [];
 
-      snapshot.forEach((docSnap) => {
-        const msgData = docSnap.data();
-        msgs.push({ id: docSnap.id, ...msgData });
+        snapshot.forEach((docSnap) => {
+          const msgData = docSnap.data();
+          msgs.push({ id: docSnap.id, ...msgData });
 
-        if (msgData.senderId !== currentUserUid && msgData.status !== "read") {
-          messagesToMarkAsRead.push(docSnap.id);
+          if (msgData.senderId !== currentUserUid && msgData.status !== "read") {
+            messagesToMarkAsRead.push(docSnap.id);
+          }
+        });
+
+        setData({ chatId, messages: msgs.reverse() });
+
+        if (messagesToMarkAsRead.length > 0) {
+          try {
+            const batch = writeBatch(db);
+            messagesToMarkAsRead.forEach((msgId) => {
+              batch.update(doc(db, "messages", msgId), { status: "read" });
+            });
+            // Раз входящие видны — мы в чате; обнуляем непрочитанные сразу,
+            // чтобы бейдж не появлялся при сообщении в открытый чат.
+            batch.update(doc(db, "chats", chatId), {
+              [`unread.${currentUserUid}`]: 0,
+            });
+            await batch.commit();
+          } catch (error) {
+            console.error("Ошибка при обновлении статуса:", error);
+          }
         }
-      });
-
-      setData({ chatId, messages: msgs.reverse() });
-
-      if (messagesToMarkAsRead.length > 0) {
-        try {
-          const batch = writeBatch(db);
-          messagesToMarkAsRead.forEach((msgId) => {
-            batch.update(doc(db, "messages", msgId), { status: "read" });
-          });
-          // Раз входящие видны — мы в чате; обнуляем непрочитанные сразу,
-          // чтобы бейдж не появлялся при сообщении в открытый чат.
-          batch.update(doc(db, "chats", chatId), {
-            [`unread.${currentUserUid}`]: 0,
-          });
-          await batch.commit();
-        } catch (error) {
-          console.error("Ошибка при обновлении статуса:", error);
-        }
-      }
-    });
+      },
+      (error) => {
+        console.error(`[useChatMessages] subscription failed for ${chatId}:`, error?.code || error);
+      },
+    );
 
     return () => {
       canceled = true;
