@@ -42,7 +42,7 @@ const MessageBubble = ({
             className={`rounded-lg px-4 py-2 shadow-sm ${
               isCurrentUser
                 ? "bg-blue-500 text-white rounded-br-none"
-                : "bg-white text-gray-800 rounded-bl-none"
+                : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-bl-none"
             }`}
             onClick={handleClick}
             title="Нажмите для действий"
@@ -52,19 +52,19 @@ const MessageBubble = ({
                 className={`mb-1.5 rounded-md border-l-2 px-2 py-1 text-xs ${
                   isCurrentUser
                     ? "border-blue-200 bg-blue-400/40"
-                    : "border-blue-400 bg-gray-100"
+                    : "border-blue-400 bg-gray-100 dark:bg-gray-700/60"
                 }`}
               >
                 <span
                   className={`block font-semibold ${
-                    isCurrentUser ? "text-blue-50" : "text-blue-600"
+                    isCurrentUser ? "text-blue-50" : "text-blue-600 dark:text-blue-400"
                   }`}
                 >
                   {msg.replyTo.senderName}
                 </span>
                 <span
                   className={`block truncate ${
-                    isCurrentUser ? "text-blue-50/90" : "text-gray-500"
+                    isCurrentUser ? "text-blue-50/90" : "text-gray-500 dark:text-gray-400"
                   }`}
                 >
                   {replyPreview}
@@ -91,7 +91,7 @@ const MessageBubble = ({
             {decryptedText && <p className="text-sm">{decryptedText}</p>}
 
             <div className="flex items-center justify-between gap-2 mt-1">
-              <p className={`text-[10px] ${isCurrentUser ? "text-blue-100" : "text-gray-400"}`}>
+              <p className={`text-[10px] ${isCurrentUser ? "text-blue-100" : "text-gray-400 dark:text-gray-500"}`}>
                 {createdAt
                   ? createdAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                   : "..."}
@@ -110,8 +110,8 @@ const MessageBubble = ({
                     onClick={() => handleReact(emoji)}
                     className={`flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs transition-colors ${
                       reactedByMe
-                        ? "border-blue-300 bg-blue-100 text-blue-700"
-                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                        ? "border-blue-300 bg-blue-100 text-blue-700 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                     }`}
                   >
                     <span>{emoji}</span>
@@ -124,7 +124,9 @@ const MessageBubble = ({
         </div>
       </div>
       {isCurrentUser && isLatestReadOwnMessage && msg.status === "read" && (
-        <div className="text-right text-[10px] text-black">Просмотрено</div>
+        <div className="text-right text-[10px] text-gray-700 dark:text-gray-400">
+          Просмотрено
+        </div>
       )}
     </>
   );

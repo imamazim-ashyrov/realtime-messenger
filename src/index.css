@@ -1,1 +1,6 @@
 @import "tailwindcss";
+
+/* Включаем class-based dark mode: dark: классы активируются при наличии
+   класса .dark на <html>. Так темой управляет JS (useTheme), а не только
+   prefers-color-scheme. */
+@custom-variant dark (&:where(.dark, .dark *));

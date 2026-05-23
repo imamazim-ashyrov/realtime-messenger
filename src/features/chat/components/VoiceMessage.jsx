@@ -73,12 +73,12 @@ const VoiceMessage = ({ audioUrl, durationHint = 0, isCurrentUser }) => {
   const btnColor = isCurrentUser
     ? "bg-white/20 text-white hover:bg-white/30"
     : "bg-blue-500 text-white hover:bg-blue-600";
-  const barBg = isCurrentUser ? "bg-white/30" : "bg-gray-200";
+  const barBg = isCurrentUser ? "bg-white/30" : "bg-gray-200 dark:bg-gray-700";
   const barFill = isCurrentUser ? "bg-white" : "bg-blue-500";
-  const timeColor = isCurrentUser ? "text-blue-50" : "text-gray-500";
+  const timeColor = isCurrentUser ? "text-blue-50" : "text-gray-500 dark:text-gray-400";
 
   return (
-    <div className="flex items-center gap-2 min-w-[180px]">
+    <div className="flex items-center gap-2 min-w-45">
       <button
         type="button"
         onClick={toggle}

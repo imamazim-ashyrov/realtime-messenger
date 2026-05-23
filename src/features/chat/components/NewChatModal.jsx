@@ -34,18 +34,18 @@ const NewChatModal = ({ currentUser, onSelectUser, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-xl"
+        className="flex max-h-[80vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border dark:border-gray-800 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-gray-100 p-4">
-          <h3 className="text-lg font-bold text-gray-900">Новый чат</h3>
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 p-4">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Новый чат</h3>
           <button
             onClick={onClose}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-300"
             aria-label="Закрыть"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -54,13 +54,13 @@ const NewChatModal = ({ currentUser, onSelectUser, onClose }) => {
           </button>
         </div>
 
-        <div className="border-b border-gray-100 p-3">
+        <div className="border-b border-gray-100 dark:border-gray-800 p-3">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по имени…"
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40"
             autoFocus
           />
         </div>
@@ -71,21 +71,21 @@ const NewChatModal = ({ currentUser, onSelectUser, onClose }) => {
               <button
                 key={user.uid}
                 onClick={() => onSelectUser(user)}
-                className="flex w-full items-center gap-3 border-b border-gray-50 p-3 text-left transition-colors hover:bg-blue-50"
+                className="flex w-full items-center gap-3 border-b border-gray-50 dark:border-gray-800 p-3 text-left transition-colors hover:bg-blue-50 dark:hover:bg-gray-800"
               >
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-blue-600 text-white font-bold shadow-sm">
                   {user.displayName?.charAt(0).toUpperCase() || "U"}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-gray-900">
+                  <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                     {user.displayName || "Пользователь"}
                   </p>
-                  <p className="truncate text-xs text-gray-400">{user.email}</p>
+                  <p className="truncate text-xs text-gray-400 dark:text-gray-500">{user.email}</p>
                 </div>
               </button>
             ))
           ) : (
-            <p className="mt-8 text-center text-sm text-gray-400">
+            <p className="mt-8 text-center text-sm text-gray-400 dark:text-gray-500">
               {search ? "Никого не найдено" : "Других пользователей пока нет"}
             </p>
           )}

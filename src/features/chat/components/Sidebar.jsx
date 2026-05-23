@@ -15,9 +15,9 @@ import { getPeerUid } from "../../../utils/chat";
 import useChats from "../../../hooks/useChats";
 import useNotifications from "../../../hooks/useNotifications";
 import useChatNotifications from "../../../hooks/useChatNotifications";
+import useTheme from "../../../hooks/useTheme";
 import NewChatModal from "./NewChatModal";
 
-// Красивый вывод времени последнего сообщения
 const formatTime = (timestamp) => {
   if (!timestamp) return "";
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -46,13 +46,11 @@ const formatTime = (timestamp) => {
   });
 };
 
-// Презентационный элемент списка — без собственных слушателей Firestore
 const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnline }) => {
   const peerUid = getPeerUid(chat.members, currentUser.uid);
   const peerInfo = chat.memberInfo?.[peerUid] || {};
   const unreadCount = chat.unread?.[currentUser.uid] || 0;
 
-  // Превью последнего сообщения
   let previewText = "Нет сообщений";
   if (chat.lastMessage) {
     switch (chat.lastMessage.type) {
@@ -67,7 +65,6 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
     }
   }
   const sentByMe = chat.lastMessage?.senderId === currentUser.uid;
-
   const isSelected = selectedUser?.uid === peerUid;
 
   const handleClick = () => {
@@ -81,8 +78,10 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
   return (
     <div
       onClick={handleClick}
-      className={`flex items-center space-x-3 border-b border-gray-50 p-3 sm:p-4 cursor-pointer transition-all ${
-        isSelected ? "bg-blue-100" : "hover:bg-blue-50"
+      className={`flex items-center space-x-3 border-b border-gray-50 dark:border-gray-800 p-3 sm:p-4 cursor-pointer transition-all ${
+        isSelected
+          ? "bg-blue-100 dark:bg-gray-800"
+          : "hover:bg-blue-50 dark:hover:bg-gray-800/60"
       }`}
     >
       <div className="relative shrink-0">
@@ -90,7 +89,7 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
           {peerInfo.displayName?.charAt(0).toUpperCase() || "U"}
         </div>
         <div
-          className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white ${
+          className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white dark:border-gray-900 ${
             isOnline ? "bg-green-500" : "bg-gray-400"
           }`}
         ></div>
@@ -98,13 +97,15 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
 
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-1">
-          <h3 className="text-sm font-semibold text-gray-900 truncate">
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
             {peerInfo.displayName || "Пользователь"}
           </h3>
           {chat.lastMessageAt && (
             <span
               className={`text-xs whitespace-nowrap ml-2 ${
-                unreadCount > 0 ? "text-blue-500 font-bold" : "text-gray-400"
+                unreadCount > 0
+                  ? "text-blue-500 dark:text-blue-400 font-bold"
+                  : "text-gray-400 dark:text-gray-500"
               }`}
             >
               {formatTime(chat.lastMessageAt)}
@@ -115,10 +116,12 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
         <div className="flex justify-between items-center gap-2">
           <p
             className={`text-sm truncate ${
-              unreadCount > 0 ? "text-gray-900 font-semibold" : "text-gray-500"
+              unreadCount > 0
+                ? "text-gray-900 dark:text-gray-100 font-semibold"
+                : "text-gray-500 dark:text-gray-400"
             }`}
           >
-            {sentByMe && <span className="text-gray-400">Вы: </span>}
+            {sentByMe && <span className="text-gray-400 dark:text-gray-500">Вы: </span>}
             {previewText}
           </p>
 
@@ -142,6 +145,7 @@ const Sidebar = () => {
   const selectedUser = useChatStore((state) => state.selectedUser);
 
   const { chats, isLoading } = useChats(currentUser.uid);
+  const { theme, toggleTheme } = useTheme();
   const {
     permission: notifPermission,
     isSupported: notifSupported,
@@ -184,27 +188,47 @@ const Sidebar = () => {
 
   return (
     <div
-      className={`flex-col border-r border-gray-200 bg-white ${selectedUser ? "hidden md:flex" : "flex w-full"} md:w-1/3`}
+      className={`flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 ${
+        selectedUser ? "hidden md:flex" : "flex w-full"
+      } md:w-1/3`}
     >
       {/* Шапка */}
-      <div className="flex items-center justify-between border-b border-gray-200 bg-gray-100 p-4">
+      <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-950 p-4">
         <div className="flex flex-col min-w-0">
-          <span className="text-xs text-gray-500">Вы вошли:</span>
-          <h2 className="text-sm font-bold text-gray-800 truncate">
+          <span className="text-xs text-gray-500 dark:text-gray-400">Вы вошли:</span>
+          <h2 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
             {currentUser.displayName || currentUser.email}
           </h2>
         </div>
         <div className="flex items-center gap-2">
+          {/* Переключатель темы */}
+          <button
+            onClick={toggleTheme}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-700"
+            title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
+            aria-label="Переключить тему"
+          >
+            {theme === "dark" ? (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 17a5 5 0 110-10 5 5 0 010 10zm0 2a7 7 0 100-14 7 7 0 000 14zm-1-17h2v3h-2V2zm0 17h2v3h-2v-3zM2 11h3v2H2v-2zm17 0h3v2h-3v-2zM4.22 4.22l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm14.14 14.14l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm0-12.72l1.42 1.42-2.12 2.12-1.42-1.42 2.12-2.12zM4.22 19.78l1.42-1.42 2.12 2.12-1.42 1.42-2.12-2.12z" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+              </svg>
+            )}
+          </button>
+
           {notifSupported && (
             <button
               onClick={requestNotifPermission}
               disabled={notifPermission === "denied"}
               className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${
                 notifPermission === "granted"
-                  ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  ? "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60"
                   : notifPermission === "denied"
-                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
               }`}
               title={
                 notifPermission === "granted"
@@ -241,7 +265,7 @@ const Sidebar = () => {
           </button>
           <button
             onClick={() => setShowLogoutConfirm(true)}
-            className="text-xs text-red-500 font-semibold hover:underline"
+            className="text-xs text-red-500 dark:text-red-400 font-semibold hover:underline"
           >
             Выйти
           </button>
@@ -251,7 +275,9 @@ const Sidebar = () => {
       {/* Список чатов */}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <p className="mt-10 text-center text-sm text-gray-400">Загрузка чатов…</p>
+          <p className="mt-10 text-center text-sm text-gray-400 dark:text-gray-500">
+            Загрузка чатов…
+          </p>
         ) : chats.length > 0 ? (
           chats.map((chat) => {
             const peerUid = getPeerUid(chat.members, currentUser.uid);
@@ -268,11 +294,11 @@ const Sidebar = () => {
             );
           })
         ) : (
-          <div className="mt-10 px-6 text-center text-sm text-gray-400">
+          <div className="mt-10 px-6 text-center text-sm text-gray-400 dark:text-gray-500">
             <p>У вас пока нет чатов.</p>
             <button
               onClick={() => setShowNewChat(true)}
-              className="mt-3 font-semibold text-blue-600 hover:underline"
+              className="mt-3 font-semibold text-blue-600 dark:text-blue-400 hover:underline"
             >
               Начать новый чат
             </button>
@@ -280,7 +306,6 @@ const Sidebar = () => {
         )}
       </div>
 
-      {/* Модалка нового чата */}
       {showNewChat && (
         <NewChatModal
           currentUser={currentUser}
@@ -292,12 +317,13 @@ const Sidebar = () => {
         />
       )}
 
-      {/* Подтверждение выхода */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl text-center">
-            <h3 className="mb-2 text-xl font-bold text-gray-900">Выход из аккаунта</h3>
-            <p className="mb-6 text-sm text-gray-500">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-sm rounded-lg bg-white dark:bg-gray-900 border dark:border-gray-800 p-6 shadow-xl text-center">
+            <h3 className="mb-2 text-xl font-bold text-gray-900 dark:text-gray-100">
+              Выход из аккаунта
+            </h3>
+            <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
               Вы уверены, что хотите выйти? Вам придется заново вводить email и пароль.
             </p>
             <div className="flex flex-col space-y-3">
@@ -309,7 +335,7 @@ const Sidebar = () => {
               </button>
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="rounded-lg bg-gray-100 py-2 font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+                className="rounded-lg bg-gray-100 dark:bg-gray-800 py-2 font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
               >
                 Отмена
               </button>

@@ -77,50 +77,47 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
-        {/* Динамический заголовок */}
-        <h2 className="mb-6 text-center text-3xl font-bold text-gray-800">
+    <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 border dark:border-gray-800 p-8 shadow-xl">
+        <h2 className="mb-6 text-center text-3xl font-bold text-gray-800 dark:text-gray-100">
           {isRegistering ? "Создать аккаунт" : "Вход в Мессенджер"}
         </h2>
 
-        {/* Показываем ошибку, если она есть */}
         {error && (
-          <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200 text-center animate-pulse">
+          <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-950/40 p-3 text-sm text-red-600 dark:text-red-300 border border-red-200 dark:border-red-900/50 text-center animate-pulse">
             {error}
           </div>
         )}
 
         <form onSubmit={handleEmailSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-300">
               Email
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40"
               placeholder="Введите ваш email"
               required
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-600">
+            <label className="mb-1 block text-sm font-medium text-gray-600 dark:text-gray-300">
               Пароль
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40"
               placeholder="Введите пароль"
               required
             />
           </div>
 
-          {/* Динамическая кнопка */}
           <button
             type="submit"
             className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white font-semibold transition-colors hover:bg-blue-700"
@@ -129,15 +126,15 @@ const LoginPage = () => {
           </button>
         </form>
 
-        <div className="my-6 flex items-center justify-center space-x-2 text-gray-400">
-          <div className="h-px w-full bg-gray-300"></div>
+        <div className="my-6 flex items-center justify-center space-x-2 text-gray-400 dark:text-gray-500">
+          <div className="h-px w-full bg-gray-300 dark:bg-gray-700"></div>
           <span className="text-sm">или</span>
-          <div className="h-px w-full bg-gray-300"></div>
+          <div className="h-px w-full bg-gray-300 dark:bg-gray-700"></div>
         </div>
 
         <button
           onClick={handleGoogleLogin}
-          className="flex w-full items-center justify-center space-x-2 rounded-lg border border-gray-300 bg-white px-4 py-2 font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          className="flex w-full items-center justify-center space-x-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2 font-semibold text-gray-700 dark:text-gray-200 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700"
         >
           {/* Иконка Google (оставил для краткости) */}
           <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -161,12 +158,11 @@ const LoginPage = () => {
           <span>Продолжить с Google</span>
         </button>
 
-        {/* Кнопка переключения режимов */}
-        <p className="mt-6 text-center text-sm text-gray-600">
+        <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-300">
           {isRegistering ? "Уже есть аккаунт?" : "Нет аккаунта?"}
           <button
             onClick={() => setIsRegistering(!isRegistering)}
-            className="ml-1 font-semibold text-blue-600 hover:underline"
+            className="ml-1 font-semibold text-blue-600 dark:text-blue-400 hover:underline"
           >
             {isRegistering ? "Войти" : "Зарегистрируйтесь"}
           </button>

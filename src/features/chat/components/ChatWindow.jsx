@@ -234,12 +234,12 @@ const ChatWindow = () => {
 
   if (!selectedUser) {
     return (
-      <div className="hidden flex-1 flex-col items-center justify-center bg-gray-50 p-4 md:flex">
+      <div className="hidden flex-1 flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 p-4 md:flex">
         <div className="text-center">
-          <div className="mb-4 flex justify-center text-6xl text-gray-300">
+          <div className="mb-4 flex justify-center text-6xl text-gray-300 dark:text-gray-700">
             💬
           </div>
-          <span className="rounded-full bg-gray-200 px-4 py-1 text-sm text-gray-500">
+          <span className="rounded-full bg-gray-200 dark:bg-gray-800 px-4 py-1 text-sm text-gray-500 dark:text-gray-400">
             Выберите пользователя, чтобы начать общение
           </span>
         </div>
@@ -248,12 +248,12 @@ const ChatWindow = () => {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col bg-gray-50 md:flex-1">
-      <div className="flex flex-col gap-3 border-b border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex h-full min-h-0 w-full flex-col bg-gray-50 dark:bg-gray-950 md:flex-1">
+      <div className="flex flex-col gap-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={resetChat}
-            className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-100"
+            className="md:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition hover:bg-gray-100 dark:hover:bg-gray-700"
             aria-label="Назад"
           >
             <svg
@@ -276,14 +276,14 @@ const ChatWindow = () => {
           </div>
 
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold text-gray-900">
+            <h2 className="truncate text-lg font-semibold text-gray-900 dark:text-gray-100">
               {selectedUser.displayName}
             </h2>
             <span
               className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                 partnerStatus?.state === "online"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-gray-100 text-gray-600"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
               }`}
             >
               {partnerStatus?.state === "online"
@@ -311,11 +311,11 @@ const ChatWindow = () => {
               : "opacity-0 translate-y-2 pointer-events-none"
           }`}
         >
-          <div className="bg-white text-gray-800 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm border border-gray-100 flex items-center space-x-3 w-fit">
+          <div className="bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center space-x-3 w-fit">
             <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
               {selectedUser?.displayName?.charAt(0).toUpperCase() || "U"}
             </div>
-            <span className="text-sm font-medium text-gray-500">печатает</span>
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">печатает</span>
             <div className="flex space-x-1.5 items-center pt-1">
               <div
                 className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce"

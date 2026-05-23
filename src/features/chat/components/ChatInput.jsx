@@ -78,13 +78,13 @@ const ChatInput = ({
   // Режим записи — полностью заменяем поле ввода
   if (isRecording || isSendingVoice) {
     return (
-      <div className="border-t border-gray-200 bg-white p-4">
+      <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={cancel}
             disabled={isSendingVoice}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50"
             aria-label="Отменить запись"
             title="Отменить"
           >
@@ -93,12 +93,12 @@ const ChatInput = ({
             </svg>
           </button>
 
-          <div className="flex flex-1 items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-2.5">
+          <div className="flex flex-1 items-center gap-3 rounded-2xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 px-4 py-2.5">
             <span className="inline-flex h-3 w-3 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-sm font-medium text-red-700">
+            <span className="text-sm font-medium text-red-700 dark:text-red-300">
               {isSendingVoice ? "Отправка…" : "Идёт запись"}
             </span>
-            <span className="ml-auto font-mono text-sm text-red-700 tabular-nums">
+            <span className="ml-auto font-mono text-sm text-red-700 dark:text-red-300 tabular-nums">
               {formatRecTime(duration)}
             </span>
           </div>
@@ -122,21 +122,21 @@ const ChatInput = ({
   const hasText = message.trim().length > 0;
 
   return (
-    <div className="border-t border-gray-200 bg-white p-4">
+    <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
       {replyContext && (
-        <div className="mb-2 flex items-center gap-2 rounded-lg border-l-4 border-blue-500 bg-blue-50 px-3 py-2">
+        <div className="mb-2 flex items-center gap-2 rounded-lg border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-950/40 px-3 py-2">
           <div className="min-w-0 flex-1">
-            <span className="block text-xs font-semibold text-blue-600">
+            <span className="block text-xs font-semibold text-blue-600 dark:text-blue-400">
               Ответ для {replyContext.senderName}
             </span>
-            <span className="block truncate text-sm text-gray-600">
+            <span className="block truncate text-sm text-gray-600 dark:text-gray-300">
               {replyContext.preview}
             </span>
           </div>
           <button
             type="button"
             onClick={onCancelReply}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 dark:text-gray-500 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300"
             aria-label="Отменить ответ"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,13 +147,13 @@ const ChatInput = ({
       )}
 
       {recorderError && (
-        <div className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 border border-red-200">
+        <div className="mb-2 rounded-lg bg-red-50 dark:bg-red-950/40 px-3 py-2 text-xs text-red-600 dark:text-red-300 border border-red-200 dark:border-red-900/50">
           {recorderError}
         </div>
       )}
 
       <form className="flex items-end gap-2" onSubmit={onSend}>
-        <div className="flex flex-1 items-end gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-100">
+        <div className="flex flex-1 items-end gap-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-100 dark:focus-within:ring-blue-900/40">
           <textarea
             ref={messageInputRef}
             value={message}
@@ -161,7 +161,7 @@ const ChatInput = ({
             onKeyDown={handleMessageKeyDown}
             placeholder="Напишите сообщение..."
             rows={1}
-            className="max-h-35 min-h-11 w-full resize-none overflow-y-auto bg-transparent py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            className="max-h-35 min-h-11 w-full resize-none overflow-y-auto bg-transparent py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none"
           />
 
           {/* ИИ-редактор */}
@@ -170,7 +170,7 @@ const ChatInput = ({
               type="button"
               onClick={() => setShowAiMenu(!showAiMenu)}
               disabled={!hasText || isAiLoading || isUploading}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-purple-500 hover:bg-purple-100 hover:text-purple-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-purple-500 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 hover:text-purple-700 dark:hover:text-purple-300 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="ИИ-Редактор"
               title="ИИ-помощник"
             >
@@ -185,14 +185,14 @@ const ChatInput = ({
             </button>
 
             {showAiMenu && (
-              <div className="absolute bottom-full right-0 mb-3 w-56 overflow-hidden rounded-xl border border-gray-100 bg-white py-2 shadow-xl z-50">
-                <button type="button" onClick={() => handleAiAction("fix")} className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-700">
+              <div className="absolute bottom-full right-0 mb-3 w-56 overflow-hidden rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 py-2 shadow-xl z-50">
+                <button type="button" onClick={() => handleAiAction("fix")} className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/40 hover:text-purple-700 dark:hover:text-purple-300">
                   ✍️ Исправить ошибки
                 </button>
-                <button type="button" onClick={() => handleAiAction("formal")} className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-700">
+                <button type="button" onClick={() => handleAiAction("formal")} className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/40 hover:text-purple-700 dark:hover:text-purple-300">
                   👔 Сделать официально
                 </button>
-                <button type="button" onClick={() => handleAiAction("english")} className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-700">
+                <button type="button" onClick={() => handleAiAction("english")} className="w-full px-4 py-2.5 text-left text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors hover:bg-purple-50 dark:hover:bg-purple-900/40 hover:text-purple-700 dark:hover:text-purple-300">
                   🇬🇧 Перевести (EN)
                 </button>
               </div>
@@ -204,7 +204,7 @@ const ChatInput = ({
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Прикрепить изображение"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,7 +251,7 @@ const ChatInput = ({
       </form>
 
       {isUploading && (
-        <div className="mt-2 text-sm text-gray-500">
+        <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
           Идёт загрузка изображения, подождите...
         </div>
       )}

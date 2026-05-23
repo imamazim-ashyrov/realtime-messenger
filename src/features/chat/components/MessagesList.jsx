@@ -29,7 +29,7 @@ const MessagesList = ({
       .some((msg) => msg.senderId !== currentUserUid);
 
   return (
-    <div className="absolute inset-0 overflow-y-auto p-4 space-y-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-80 pb-28">
+    <div className="absolute inset-0 overflow-y-auto p-4 space-y-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-80 dark:bg-none dark:bg-gray-950 dark:opacity-100 pb-28">
       {visibleMessages.map((msg) => (
         <MessageBubble
           key={msg.id}

@@ -15,15 +15,15 @@ const MessageActionsModal = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black bg-opacity-50 px-4 pb-6 sm:items-center sm:pb-0"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-4 pb-6 sm:items-center sm:pb-0"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl"
+        className="w-full max-w-sm overflow-hidden rounded-2xl bg-white dark:bg-gray-900 border dark:border-gray-800 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Быстрые реакции */}
-        <div className="flex items-center justify-around border-b border-gray-100 px-2 py-3">
+        <div className="flex items-center justify-around border-b border-gray-100 dark:border-gray-800 px-2 py-3">
           {QUICK_REACTIONS.map((emoji) => {
             const reacted = message.reactions?.[emoji]?.includes(currentUserUid);
             return (
@@ -32,7 +32,9 @@ const MessageActionsModal = ({
                 type="button"
                 onClick={() => onReact(emoji)}
                 className={`flex h-11 w-11 items-center justify-center rounded-full text-2xl transition-transform hover:scale-125 ${
-                  reacted ? "bg-blue-100" : "hover:bg-gray-100"
+                  reacted
+                    ? "bg-blue-100 dark:bg-blue-900/40"
+                    : "hover:bg-gray-100 dark:hover:bg-gray-800"
                 }`}
                 aria-label={`Реакция ${emoji}`}
               >
@@ -47,7 +49,7 @@ const MessageActionsModal = ({
           <button
             type="button"
             onClick={onReply}
-            className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+            className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-left text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a5 5 0 015 5v4M3 10l6-6M3 10l6 6" />
@@ -59,7 +61,7 @@ const MessageActionsModal = ({
             <button
               type="button"
               onClick={onDeleteForEveryone}
-              className="rounded-lg bg-red-50 px-4 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
+              className="rounded-lg bg-red-50 dark:bg-red-950/40 px-4 py-2.5 text-left text-sm font-medium text-red-600 dark:text-red-300 transition-colors hover:bg-red-100 dark:hover:bg-red-900/40"
             >
               Удалить у всех
             </button>
@@ -67,14 +69,14 @@ const MessageActionsModal = ({
           <button
             type="button"
             onClick={onDeleteForMe}
-            className="rounded-lg bg-yellow-50 px-4 py-2.5 text-left text-sm font-medium text-yellow-700 transition-colors hover:bg-yellow-100"
+            className="rounded-lg bg-yellow-50 dark:bg-yellow-950/40 px-4 py-2.5 text-left text-sm font-medium text-yellow-700 dark:text-yellow-300 transition-colors hover:bg-yellow-100 dark:hover:bg-yellow-900/40"
           >
             Удалить только у меня
           </button>
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg bg-gray-100 px-4 py-2.5 text-center text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200"
+            className="rounded-lg bg-gray-100 dark:bg-gray-800 px-4 py-2.5 text-center text-sm font-medium text-gray-700 dark:text-gray-200 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700"
           >
             Отмена
           </button>
