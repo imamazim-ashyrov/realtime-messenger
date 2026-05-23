@@ -73,7 +73,7 @@ const NewChatModal = ({ currentUser, onSelectUser, onClose }) => {
                 onClick={() => onSelectUser(user)}
                 className="flex w-full items-center gap-3 border-b border-gray-50 p-3 text-left transition-colors hover:bg-blue-50"
               >
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-600 text-white font-bold shadow-sm">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-blue-400 to-blue-600 text-white font-bold shadow-sm">
                   {user.displayName?.charAt(0).toUpperCase() || "U"}
                 </div>
                 <div className="min-w-0">

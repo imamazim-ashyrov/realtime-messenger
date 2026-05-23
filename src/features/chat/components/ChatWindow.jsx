@@ -93,10 +93,8 @@ const ChatWindow = () => {
     const audio = new Audio(
       "https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3",
     );
-
-    audio.play().catch((err) => {
-      console.log("Автовоспроизведение звука заблокировано браузером", err);
-    });
+    // Браузер блокирует автоплей до первого user interaction — это норма, глотаем
+    audio.play().catch(() => {});
   }, []);
 
   const { messages } = useChatMessages(chatId, currentUser?.uid);
@@ -143,14 +141,17 @@ const ChatWindow = () => {
     }
   };
 
-  const handleToggleReaction = async (targetMessage, emoji) => {
-    if (!targetMessage) return;
-    try {
-      await toggleReaction({ message: targetMessage, emoji, uid: currentUser.uid });
-    } catch (error) {
-      console.error("Ошибка при изменении реакции:", error);
-    }
-  };
+  const handleToggleReaction = useCallback(
+    async (targetMessage, emoji) => {
+      if (!targetMessage) return;
+      try {
+        await toggleReaction({ message: targetMessage, emoji, uid: currentUser.uid });
+      } catch (error) {
+        console.error("Ошибка при изменении реакции:", error);
+      }
+    },
+    [currentUser?.uid],
+  );
 
   const handleImageUpload = async (e) => {
     const input = e.target;
@@ -252,7 +253,7 @@ const ChatWindow = () => {
             </svg>
           </button>
 
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-lg font-semibold text-white shadow-md">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-linear-to-br from-blue-500 to-indigo-600 text-lg font-semibold text-white shadow-md">
             {selectedUser.displayName?.charAt(0).toUpperCase()}
           </div>
 

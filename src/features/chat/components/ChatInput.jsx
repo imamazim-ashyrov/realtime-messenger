@@ -73,7 +73,7 @@ const ChatInput = ({
           <button
             type="button"
             onClick={onCancelReply}
-            className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
             aria-label="Отменить ответ"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,7 +94,7 @@ const ChatInput = ({
             onKeyDown={handleMessageKeyDown}
             placeholder="Напишите сообщение..."
             rows={1}
-            className="max-h-[140px] min-h-[44px] w-full resize-none overflow-y-auto bg-transparent py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            className="max-h-35 min-h-11 w-full resize-none overflow-y-auto bg-transparent py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
           
           {/* --- МАГИЧЕСКАЯ КНОПКА ИИ --- */}

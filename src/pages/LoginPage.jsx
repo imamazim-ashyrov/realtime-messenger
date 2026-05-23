@@ -13,44 +13,26 @@ const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-
-  // Новое состояние: определяет, находимся ли мы в режиме регистрации
   const [isRegistering, setIsRegistering] = useState(false);
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
-    setError(""); // Сбрасываем ошибку при новом сабмите
+    setError("");
     try {
       if (isRegistering) {
-        // 1. Создаем пользователя в Firebase Auth
-        const userCredential = await createUserWithEmailAndPassword(
-          auth,
-          email,
-          password,
-        );
-        const user = userCredential.user;
-
-        // 2. Создаем документ в Firestore в коллекции 'users'
-        // ID документа строго совпадает с ID пользователя (user.uid)
+        const { user } = await createUserWithEmailAndPassword(auth, email, password);
+        // Документ пользователя — id строго совпадает с auth uid
         await setDoc(doc(db, "users", user.uid), {
           uid: user.uid,
           email: user.email,
-          displayName: user.email.split("@")[0], // Берем часть почты до @ как имя
+          displayName: user.email.split("@")[0],
           isOnline: true,
           createdAt: serverTimestamp(),
         });
-
-        console.log("Успешная регистрация и сохранение в БД!");
       } else {
-        const userCredential = await signInWithEmailAndPassword(
-          auth,
-          email,
-          password,
-        );
-        console.log("Успешный вход!", userCredential.user);
+        await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (error) {
-      console.error("Ошибка авторизации:", error.message);
       switch (error.code) {
         case "auth/invalid-credential":
         case "auth/user-not-found":
@@ -73,14 +55,11 @@ const LoginPage = () => {
   };
 
   const handleGoogleLogin = async () => {
-    setError(""); // Сбрасываем ошибку при новом сабмите
+    setError("");
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      // Используем setDoc с опцией { merge: true }.
-      // Если юзер новый - документ создастся. Если он уже был в базе - обновятся только поля ниже, без удаления старых данных.
+      const { user } = await signInWithPopup(auth, provider);
+      // merge: true — обновим только эти поля, существующие данные не затрём
       await setDoc(
         doc(db, "users", user.uid),
         {
@@ -92,10 +71,7 @@ const LoginPage = () => {
         },
         { merge: true },
       );
-
-      console.log("Успешный вход через Google и сохранение в БД!");
-    } catch (error) {
-      console.error("Ошибка входа через Google:", error.message);
+    } catch {
       setError("Произошла ошибка при входе через Google. Попробуйте еще раз.");
     }
   };

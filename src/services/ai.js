@@ -5,11 +5,9 @@ export const enhanceMessageWithAI = async (text, action) => {
   if (!text) return text;
   
   if (!apiKey) {
-    console.error("Не найден VITE_GROQ_API_KEY в файле .env");
     return "Ошибка: Нет API ключа. Проверьте .env файл.";
   }
 
-  // Настраиваем системный промпт (инструкцию для нейросети)
   let systemPrompt = "";
   switch (action) {
     case "fix":
@@ -26,7 +24,6 @@ export const enhanceMessageWithAI = async (text, action) => {
   }
 
   try {
-    // Делаем прямой REST API запрос к серверам Groq
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -34,34 +31,26 @@ export const enhanceMessageWithAI = async (text, action) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        // Рабочая и быстрая модель для редакторских задач
         model,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: text }
+          { role: "user", content: text },
         ],
-        temperature: 0.3, // Низкая температура, чтобы ИИ не фантазировал, а четко выполнял задачу
+        temperature: 0.3, // низкая, чтобы редактор не фантазировал
         max_tokens: 1024,
       }),
     });
 
-    // Обработка HTTP-ошибок
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Groq API Error:", errorData);
-      
       if (response.status === 429) {
         return "Ошибка: Слишком много запросов. Подождите пару секунд ⏳";
       }
       return "Ошибка: Сбой на сервере нейросети.";
     }
 
-    // Парсим успешный ответ
     const data = await response.json();
     return data.choices[0].message.content.trim();
-
-  } catch (error) {
-    console.error("Ошибка при запросе к Groq:", error);
+  } catch {
     return "Ошибка: Не удалось связаться с нейросетью. Проверьте интернет.";
   }
 };

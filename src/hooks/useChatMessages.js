@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
 import {
   collection,
@@ -11,19 +11,13 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
-const useChatMessages = (chatId, currentUserUid, { onNewIncomingMessage } = {}) => {
-  const [messages, setMessages] = useState([]);
-  const isFirstLoad = useRef(true);
+const useChatMessages = (chatId, currentUserUid) => {
+  // Храним сообщения вместе с их chatId, чтобы при переключении чата
+  // не отрисовать данные старого чата до прихода первого снапшота нового.
+  const [data, setData] = useState({ chatId: null, messages: [] });
 
   useEffect(() => {
-    isFirstLoad.current = true;
-  }, [chatId]);
-
-  useEffect(() => {
-    if (!chatId || !currentUserUid) {
-      setMessages([]);
-      return undefined;
-    }
+    if (!chatId || !currentUserUid) return undefined;
 
     let canceled = false;
     const q = query(
@@ -48,20 +42,16 @@ const useChatMessages = (chatId, currentUserUid, { onNewIncomingMessage } = {}) 
         }
       });
 
-      if (!canceled) {
-        setMessages(msgs.reverse());
-      }
+      setData({ chatId, messages: msgs.reverse() });
 
       if (messagesToMarkAsRead.length > 0) {
         try {
           const batch = writeBatch(db);
           messagesToMarkAsRead.forEach((msgId) => {
-            const msgRef = doc(db, "messages", msgId);
-            batch.update(msgRef, { status: "read" });
+            batch.update(doc(db, "messages", msgId), { status: "read" });
           });
-          // Раз мы видим эти входящие сообщения — мы внутри чата.
-          // Сразу обнуляем счётчик непрочитанных, чтобы бейдж не появлялся,
-          // когда сообщение приходит в открытый чат.
+          // Раз входящие видны — мы в чате; обнуляем непрочитанные сразу,
+          // чтобы бейдж не появлялся при сообщении в открытый чат.
           batch.update(doc(db, "chats", chatId), {
             [`unread.${currentUserUid}`]: 0,
           });
@@ -70,23 +60,15 @@ const useChatMessages = (chatId, currentUserUid, { onNewIncomingMessage } = {}) 
           console.error("Ошибка при обновлении статуса:", error);
         }
       }
-
-      if (isFirstLoad.current) {
-        isFirstLoad.current = false;
-      } else {
-        const lastMessage = msgs[msgs.length - 1];
-        if (lastMessage && lastMessage.senderId !== currentUserUid) {
-          onNewIncomingMessage?.(lastMessage);
-        }
-      }
     });
 
     return () => {
       canceled = true;
       unsubscribe();
     };
-  }, [chatId, currentUserUid, onNewIncomingMessage]);
+  }, [chatId, currentUserUid]);
 
+  const messages = data.chatId === chatId ? data.messages : [];
   return { messages };
 };
 

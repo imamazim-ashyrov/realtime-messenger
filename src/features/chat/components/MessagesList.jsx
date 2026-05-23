@@ -1,20 +1,31 @@
 import MessageBubble from "./MessageBubble";
 
-const MessagesList = ({ messages, currentUserUid, chatId, onMessageClick, onToggleReaction, scrollRef }) => {
-  const visibleMessages = messages.filter((msg) => !msg.deletedFor?.includes(currentUserUid));
-  let latestReadOwnMessage = null;
-  let latestReadOwnMessageIndex = -1;
+const MessagesList = ({
+  messages,
+  currentUserUid,
+  chatId,
+  onMessageClick,
+  onToggleReaction,
+  scrollRef,
+}) => {
+  const visibleMessages = messages.filter(
+    (msg) => !msg.deletedFor?.includes(currentUserUid),
+  );
 
+  // Самое последнее ПРОЧИТАННОЕ собственное сообщение, после которого нет
+  // чужих ответов — под ним покажем «Просмотрено».
+  let latestReadOwnId = null;
+  let latestReadOwnIndex = -1;
   visibleMessages.forEach((msg, index) => {
     if (msg.senderId === currentUserUid && msg.status === "read") {
-      latestReadOwnMessage = msg;
-      latestReadOwnMessageIndex = index;
+      latestReadOwnId = msg.id;
+      latestReadOwnIndex = index;
     }
   });
-
-  const showReadReceipt = latestReadOwnMessageIndex >= 0
-    && !visibleMessages
-      .slice(latestReadOwnMessageIndex + 1)
+  const showReadReceipt =
+    latestReadOwnIndex >= 0 &&
+    !visibleMessages
+      .slice(latestReadOwnIndex + 1)
       .some((msg) => msg.senderId !== currentUserUid);
 
   return (
@@ -26,9 +37,9 @@ const MessagesList = ({ messages, currentUserUid, chatId, onMessageClick, onTogg
           chatId={chatId}
           currentUserUid={currentUserUid}
           isCurrentUser={msg.senderId === currentUserUid}
-          isLatestReadOwnMessage={showReadReceipt && msg.id === latestReadOwnMessage?.id}
-          onClick={() => onMessageClick(msg)}
-          onToggleReaction={(emoji) => onToggleReaction(msg, emoji)}
+          isLatestReadOwnMessage={showReadReceipt && msg.id === latestReadOwnId}
+          onSelect={onMessageClick}
+          onReact={onToggleReaction}
         />
       ))}
       <div ref={scrollRef} />

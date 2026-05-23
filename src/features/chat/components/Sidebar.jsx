@@ -78,8 +78,8 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
         isSelected ? "bg-blue-100" : "hover:bg-blue-50"
       }`}
     >
-      <div className="relative flex-shrink-0">
-        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-lg font-bold shadow-sm">
+      <div className="relative shrink-0">
+        <div className="h-12 w-12 rounded-full bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-lg font-bold shadow-sm">
           {peerInfo.displayName?.charAt(0).toUpperCase() || "U"}
         </div>
         <div
@@ -116,7 +116,7 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
           </p>
 
           {unreadCount > 0 && (
-            <div className="flex-shrink-0 bg-blue-500 text-white text-[11px] font-bold h-5 min-w-[20px] px-1.5 rounded-full flex items-center justify-center shadow-sm">
+            <div className="shrink-0 bg-blue-500 text-white text-[11px] font-bold h-5 min-w-5 px-1.5 rounded-full flex items-center justify-center shadow-sm">
               {unreadCount > 10 ? "10+" : unreadCount}
             </div>
           )}

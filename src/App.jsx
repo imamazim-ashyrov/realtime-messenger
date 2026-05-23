@@ -9,64 +9,48 @@ import { rtdb } from "./services/firebase";
 import { ref, onValue, onDisconnect, set, serverTimestamp as rtdbServerTimestamp } from "firebase/database";
 
 function App() {
-  // Достаем нужные переменные и функцию из нашего глобального хранилища
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const isLoading = useAuthStore((state) => state.isLoading);
 
   useEffect(() => {
-    let rtdbUnsubscribe = null; // Для хранения функции отписки от RTDB
-    
-    // Подписываемся на изменения состояния авторизации
+    let rtdbUnsubscribe = null;
+
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // Firebase сам передаст сюда объект пользователя (или null, если он вышел)
       setUser(currentUser);
 
       if (rtdbUnsubscribe) {
-        rtdbUnsubscribe(); // Отписываемся от предыдущих слушателей RTDB, если они были
+        rtdbUnsubscribe();
         rtdbUnsubscribe = null;
       }
 
       if (currentUser) {
-        // --- ЛОГИКА СТАТУСОВ REALTIME DATABASE ---
         const userStatusRef = ref(rtdb, `/status/${currentUser.uid}`);
-        const connectedRef = ref(rtdb, '.info/connected'); // Специальный путь Firebase для проверки соединения
+        const connectedRef = ref(rtdb, ".info/connected");
 
-        // Сохраняем функцию отписки
         rtdbUnsubscribe = onValue(connectedRef, (snap) => {
-          if (snap.val() === true) {
-            // Что записать, если связь оборвется (onDisconnect)
-            const isOfflineForDatabase = {
-              state: 'offline',
-              last_changed: rtdbServerTimestamp(),
-            };
+          if (snap.val() !== true) return;
 
-            // Что записать, когда мы в сети
-            const isOnlineForDatabase = {
-              state: 'online',
-              last_changed: rtdbServerTimestamp(),
-            };
-
-            // Если соединение разорвется, сервер САМ запишет isOffline
-            onDisconnect(userStatusRef).set(isOfflineForDatabase).then(() => {
-              // А пока мы здесь, ставим статус online
-              set(userStatusRef, isOnlineForDatabase);
+          // onDisconnect срабатывает на сервере — даже если вкладка крашнется,
+          // статус всё равно станет offline
+          onDisconnect(userStatusRef)
+            .set({ state: "offline", last_changed: rtdbServerTimestamp() })
+            .then(() => {
+              set(userStatusRef, {
+                state: "online",
+                last_changed: rtdbServerTimestamp(),
+              });
             });
-          }
         });
       }
     });
 
-    // Очистка при удалении компонента (важно для оптимизации!)
     return () => {
       unsubscribe();
-      if (rtdbUnsubscribe) {
-        rtdbUnsubscribe();
-      }
+      rtdbUnsubscribe?.();
     };
   }, [setUser]);
 
-  // Пока Firebase проверяет, залогинен ли юзер, показываем загрузку
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
@@ -77,8 +61,7 @@ function App() {
     );
   }
 
-  // Если юзер есть — показываем заглушку чата, если нет — страницу логина
-  return <div>{user ? <ChatPage /> : <LoginPage />}</div>;
+  return user ? <ChatPage /> : <LoginPage />;
 }
 
 export default App;
