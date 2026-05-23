@@ -4,3 +4,46 @@
    класса .dark на <html>. Так темой управляет JS (useTheme), а не только
    prefers-color-scheme. */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Фон чата: лёгкая точечная сетка вместо внешней картинки с GitHub.
+   Без сетевого запроса, работает оффлайн, одинаково в обеих темах. */
+.bg-chat-pattern {
+  background-color: #f8fafc;
+  background-image: radial-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.dark .bg-chat-pattern {
+  background-color: #030712;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.07) 1px, transparent 1px);
+}
+
+/* Появление модалок: fade + лёгкий scale, без зависимостей */
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-modal-in {
+  animation: modal-in 160ms ease-out;
+}
+
+/* Подсветка вновь обновившегося чата в сайдбаре */
+@keyframes chat-flash {
+  0% {
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animate-chat-flash {
+  animation: chat-flash 900ms ease-out;
+}

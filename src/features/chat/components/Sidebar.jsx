@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuthStore } from "../../../store/authStore";
 import { auth } from "../../../services/firebase";
 import { signOut } from "firebase/auth";
@@ -48,7 +48,7 @@ const formatTime = (timestamp) => {
   });
 };
 
-const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnline }) => {
+const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnline, flash }) => {
   const peerUid = getPeerUid(chat.members, currentUser.uid);
   const peerInfo = chat.memberInfo?.[peerUid] || {};
   const unreadCount = chat.unread?.[currentUser.uid] || 0;
@@ -63,7 +63,6 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
         previewText = "🎤 Голосовое сообщение";
         break;
       case "call": {
-        // sender в записи о звонке = тот, кто звонил
         const iWasCaller = chat.lastMessage.senderId === currentUser.uid;
         if (chat.lastMessage.callStatus === "completed") {
           const d = chat.lastMessage.callDuration || 0;
@@ -72,7 +71,6 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
         } else if (chat.lastMessage.callStatus === "rejected") {
           previewText = iWasCaller ? "📞 Отклонён" : "📞 Вы отклонили звонок";
         } else {
-          // missed
           previewText = iWasCaller ? "📞 Не дозвонился" : "📞 Пропущенный вызов";
         }
         break;
@@ -81,7 +79,6 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
         previewText = decryptMessage(chat.lastMessage.text, chat.id);
     }
   }
-  // Префикс «Вы:» уместен только для обычных сообщений, не для системных звонков
   const sentByMe =
     chat.lastMessage?.senderId === currentUser.uid && chat.lastMessage?.type !== "call";
   const isSelected = selectedUser?.uid === peerUid;
@@ -101,7 +98,7 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
         isSelected
           ? "bg-blue-100 dark:bg-gray-800"
           : "hover:bg-blue-50 dark:hover:bg-gray-800/60"
-      }`}
+      } ${flash ? "animate-chat-flash" : ""}`}
     >
       <Avatar
         url={peerInfo.avatarUrl}
@@ -155,7 +152,12 @@ const Sidebar = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [search, setSearch] = useState("");
   const [userStatuses, setUserStatuses] = useState({});
+  const [flashChatId, setFlashChatId] = useState(null);
+  const [prevTopChatId, setPrevTopChatId] = useState(null);
+
   const currentUser = useAuthStore((state) => state.user);
   const setSelectedUser = useChatStore((state) => state.setSelectedUser);
   const selectedUser = useChatStore((state) => state.selectedUser);
@@ -176,6 +178,36 @@ const Sidebar = () => {
     notify,
     onOpenChat: setSelectedUser,
   });
+
+  // Подсветка верхнего чата при появлении нового сообщения. React-рекомендованный
+  // паттерн «derive state from props»: setState во время рендера под условием.
+  const topChatId = chats[0]?.id ?? null;
+  if (topChatId !== prevTopChatId) {
+    setPrevTopChatId(topChatId);
+    if (prevTopChatId !== null && topChatId !== null) {
+      setFlashChatId(topChatId);
+    }
+  }
+
+  // Таймер сброса подсветки — setState уходит асинхронно через setTimeout.
+  useEffect(() => {
+    if (!flashChatId) return undefined;
+    const t = setTimeout(() => setFlashChatId(null), 900);
+    return () => clearTimeout(t);
+  }, [flashChatId]);
+
+  // Клик вне меню — закрыть. Без ref: вешаем listener на document и
+  // проверяем target.closest по data-атрибуту.
+  useEffect(() => {
+    if (!showMenu) return undefined;
+    const onClick = (e) => {
+      if (!e.target.closest("[data-sidebar-menu]")) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [showMenu]);
 
   const handleLogout = async () => {
     try {
@@ -202,6 +234,16 @@ const Sidebar = () => {
     return () => unsubscribe();
   }, []);
 
+  const filteredChats = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return chats;
+    return chats.filter((chat) => {
+      const peerUid = getPeerUid(chat.members, currentUser.uid);
+      const name = chat.memberInfo?.[peerUid]?.displayName || "";
+      return name.toLowerCase().includes(term);
+    });
+  }, [chats, search, currentUser.uid]);
+
   return (
     <div
       className={`flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 ${
@@ -227,59 +269,8 @@ const Sidebar = () => {
             </h2>
           </div>
         </button>
-        <div className="flex items-center gap-2">
-          {/* Переключатель темы */}
-          <button
-            onClick={toggleTheme}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-700"
-            title={theme === "dark" ? "Светлая тема" : "Тёмная тема"}
-            aria-label="Переключить тему"
-          >
-            {theme === "dark" ? (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 17a5 5 0 110-10 5 5 0 010 10zm0 2a7 7 0 100-14 7 7 0 000 14zm-1-17h2v3h-2V2zm0 17h2v3h-2v-3zM2 11h3v2H2v-2zm17 0h3v2h-3v-2zM4.22 4.22l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm14.14 14.14l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm0-12.72l1.42 1.42-2.12 2.12-1.42-1.42 2.12-2.12zM4.22 19.78l1.42-1.42 2.12 2.12-1.42 1.42-2.12-2.12z" />
-              </svg>
-            ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-              </svg>
-            )}
-          </button>
 
-          {notifSupported && (
-            <button
-              onClick={requestNotifPermission}
-              disabled={notifPermission === "denied"}
-              className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${
-                notifPermission === "granted"
-                  ? "bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/60"
-                  : notifPermission === "denied"
-                    ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-              }`}
-              title={
-                notifPermission === "granted"
-                  ? "Уведомления включены"
-                  : notifPermission === "denied"
-                    ? "Уведомления заблокированы в настройках браузера"
-                    : "Включить уведомления"
-              }
-              aria-label="Уведомления"
-            >
-              {notifPermission === "granted" ? (
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 22a2.5 2.5 0 0 0 2.45-2H9.55A2.5 2.5 0 0 0 12 22zM18 16v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
-                </svg>
-              ) : (
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-2-2v-5a6 6 0 1 0-12 0v5l-2 2h5m6 0a3 3 0 1 1-6 0m6 0H9" />
-                  {notifPermission === "denied" && (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4l16 16" />
-                  )}
-                </svg>
-              )}
-            </button>
-          )}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setShowNewChat(true)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700"
@@ -290,12 +281,129 @@ const Sidebar = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v14M5 12h14" />
             </svg>
           </button>
-          <button
-            onClick={() => setShowLogoutConfirm(true)}
-            className="text-xs text-red-500 dark:text-red-400 font-semibold hover:underline"
+
+          {/* Меню «три точки» — тема, уведомления, выход */}
+          <div className="relative" data-sidebar-menu>
+            <button
+              onClick={() => setShowMenu((v) => !v)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition hover:bg-gray-300 dark:hover:bg-gray-700"
+              title="Меню"
+              aria-label="Меню"
+              aria-expanded={showMenu}
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="2" />
+                <circle cx="12" cy="12" r="2" />
+                <circle cx="12" cy="19" r="2" />
+              </svg>
+            </button>
+
+            {showMenu && (
+              <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-50 animate-modal-in">
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleTheme();
+                    setShowMenu(false);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-200 transition hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {theme === "dark" ? (
+                    <svg className="h-5 w-5 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 17a5 5 0 110-10 5 5 0 010 10zm0 2a7 7 0 100-14 7 7 0 000 14zm-1-17h2v3h-2V2zm0 17h2v3h-2v-3zM2 11h3v2H2v-2zm17 0h3v2h-3v-2zM4.22 4.22l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm14.14 14.14l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm0-12.72l1.42 1.42-2.12 2.12-1.42-1.42 2.12-2.12zM4.22 19.78l1.42-1.42 2.12 2.12-1.42 1.42-2.12-2.12z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5 text-indigo-500" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                    </svg>
+                  )}
+                  <span>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
+                </button>
+
+                {notifSupported && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      requestNotifPermission();
+                      setShowMenu(false);
+                    }}
+                    disabled={notifPermission === "denied"}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-200 transition hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <svg
+                      className={`h-5 w-5 ${
+                        notifPermission === "granted"
+                          ? "text-blue-500"
+                          : notifPermission === "denied"
+                            ? "text-gray-400"
+                            : "text-gray-500"
+                      }`}
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M12 22a2.5 2.5 0 0 0 2.45-2H9.55A2.5 2.5 0 0 0 12 22zM18 16v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
+                    </svg>
+                    <span>
+                      {notifPermission === "granted"
+                        ? "Уведомления включены"
+                        : notifPermission === "denied"
+                          ? "Уведомления заблокированы"
+                          : "Включить уведомления"}
+                    </span>
+                  </button>
+                )}
+
+                <div className="border-t border-gray-100 dark:border-gray-700" />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMenu(false);
+                    setShowLogoutConfirm(true);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-900/30"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  </svg>
+                  <span>Выйти</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Поиск чатов */}
+      <div className="border-b border-gray-100 dark:border-gray-800 p-3">
+        <div className="relative">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            Выйти
-          </button>
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по чатам…"
+            className="w-full rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 pl-10 pr-9 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300"
+              aria-label="Очистить поиск"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -305,8 +413,8 @@ const Sidebar = () => {
           <p className="mt-10 text-center text-sm text-gray-400 dark:text-gray-500">
             Загрузка чатов…
           </p>
-        ) : chats.length > 0 ? (
-          chats.map((chat) => {
+        ) : filteredChats.length > 0 ? (
+          filteredChats.map((chat) => {
             const peerUid = getPeerUid(chat.members, currentUser.uid);
             const isUserOnline = userStatuses[peerUid]?.state === "online";
             return (
@@ -317,9 +425,14 @@ const Sidebar = () => {
                 selectedUser={selectedUser}
                 setSelectedUser={setSelectedUser}
                 isOnline={isUserOnline}
+                flash={flashChatId === chat.id}
               />
             );
           })
+        ) : chats.length > 0 ? (
+          <p className="mt-10 px-6 text-center text-sm text-gray-400 dark:text-gray-500">
+            По запросу «{search}» ничего не найдено
+          </p>
         ) : (
           <div className="mt-10 px-6 text-center text-sm text-gray-400 dark:text-gray-500">
             <p>У вас пока нет чатов.</p>
@@ -353,7 +466,7 @@ const Sidebar = () => {
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-sm rounded-lg bg-white dark:bg-gray-900 border dark:border-gray-800 p-6 shadow-xl text-center">
+          <div className="w-full max-w-sm rounded-lg bg-white dark:bg-gray-900 border dark:border-gray-800 p-6 shadow-xl text-center animate-modal-in">
             <h3 className="mb-2 text-xl font-bold text-gray-900 dark:text-gray-100">
               Выход из аккаунта
             </h3>

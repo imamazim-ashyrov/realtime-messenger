@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAuthStore } from "../../../store/authStore";
 import { useChatStore } from "../../../store/chatStore";
 import { rtdb } from "../../../services/firebase";
@@ -27,7 +27,6 @@ const ChatWindow = ({ onStartCall }) => {
   const [activeMessage, setActiveMessage] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
   const [partnerStatus, setPartnerStatus] = useState(null);
-  const scrollRef = useRef(null);
 
   const currentUser = useAuthStore((state) => state.user);
   const selectedUser = useChatStore((state) => state.selectedUser);
@@ -100,16 +99,6 @@ const ChatWindow = ({ onStartCall }) => {
   }, []);
 
   const { messages } = useChatMessages(chatId, currentUser?.uid);
-
-  // Автоскролл вниз: при смене чата и при любом изменении длины списка
-  // сообщений (своя отправка / входящее / первая загрузка чата).
-  useEffect(() => {
-    if (!scrollRef.current) return undefined;
-    const timer = setTimeout(() => {
-      scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [chatId, messages.length]);
 
   const { isPartnerTyping, handleTyping, resetTyping } = useTypingStatus(
     chatId,
@@ -312,12 +301,12 @@ const ChatWindow = ({ onStartCall }) => {
 
       <div className="relative flex-1 overflow-hidden">
         <MessagesList
+          key={chatId}
           messages={messages}
           currentUserUid={currentUser?.uid}
           chatId={chatId}
           onMessageClick={setActiveMessage}
           onToggleReaction={handleToggleReaction}
-          scrollRef={scrollRef}
         />
 
         <div
