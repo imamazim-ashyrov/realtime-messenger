@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
 import { decryptMessage } from "../../../utils/crypto";
 import VoiceMessage from "./VoiceMessage";
+import CallSummary from "./CallSummary";
 
 const MessageBubble = ({
   msg,
@@ -33,6 +34,11 @@ const MessageBubble = ({
   const activeReactions = msg.reactions
     ? Object.entries(msg.reactions).filter(([, uids]) => uids?.length > 0)
     : [];
+
+  // Сообщения о звонке — отдельный системный вид (по центру, без пузыря).
+  if (msg.callSummary) {
+    return <CallSummary msg={msg} isCurrentUser={isCurrentUser} />;
+  }
 
   return (
     <>

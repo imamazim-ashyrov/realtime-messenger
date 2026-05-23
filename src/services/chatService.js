@@ -56,9 +56,10 @@ const writeMessage = async ({ chatId, sender, peer, messageData, preview }) => {
       ...messageData,
     });
 
+    // Спред превью даёт возможность типам сообщений (call, audio, image, ...)
+    // прокидывать дополнительные поля (callStatus, callDuration и т.д.).
     const lastMessage = {
-      text: preview.text,
-      type: preview.type,
+      ...preview,
       senderId: sender.uid,
     };
 
@@ -120,6 +121,29 @@ export const sendImageMessage = async ({ chatId, sender, peer, imageUrl }) => {
     peer,
     messageData: { text: "", imageUrl },
     preview: { text: "", type: "image" },
+  });
+};
+
+/**
+ * Запись итога звонка в чат. Всегда пишет caller — он знает контекст
+ * (когда поднялась, когда закончилась) и пишет ровно один раз.
+ * status: "missed" | "rejected" | "completed"
+ */
+export const sendCallSummary = async ({ chatId, caller, peer, status, durationSeconds = 0 }) => {
+  await writeMessage({
+    chatId,
+    sender: caller,
+    peer,
+    messageData: {
+      text: "",
+      callSummary: { status, durationSeconds },
+    },
+    preview: {
+      text: "",
+      type: "call",
+      callStatus: status,
+      callDuration: durationSeconds,
+    },
   });
 };
 

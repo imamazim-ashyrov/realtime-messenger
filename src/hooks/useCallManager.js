@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useAuthStore } from "../store/authStore";
 import { useCallStore } from "../store/callStore";
+import { getPrivateChatId } from "../utils/chat";
 import {
   newCallId,
   createCallDoc,
@@ -12,25 +13,17 @@ import {
   subscribeCallDoc,
   subscribeIncomingCalls,
 } from "../services/callService";
+import { sendCallSummary } from "../services/chatService";
 
 // Бесплатные публичные STUN-серверы Google. TURN-сервера сюда не подключаем —
-// это платная инфраструктура (или собственный coturn). В типичных домашних
-// сетях звонок проходит и без TURN.
+// это платная инфраструктура (или собственный coturn).
 const ICE_SERVERS = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
 
-/**
- * Единый менеджер звонков:
- *   - подписывается на входящие звонки и кладёт их в callStore (incomingCall),
- *   - предоставляет startCall / acceptCall / rejectCall / endCall / toggleMute,
- *   - управляет всем жизненным циклом RTCPeerConnection и подписок Firestore.
- *
- * Монтируется один раз в ChatPage (после авторизации).
- */
+// Если абонент не принял за 30 секунд — авто-завершаем как «не дозвонился».
+const RING_TIMEOUT_MS = 30_000;
+
 const useCallManager = () => {
   const currentUser = useAuthStore((s) => s.user);
-  const incomingCall = useCallStore((s) => s.incomingCall);
-  const activeCall = useCallStore((s) => s.activeCall);
-  const isMuted = useCallStore((s) => s.isMuted);
   const setIncomingCall = useCallStore((s) => s.setIncomingCall);
   const setActiveCall = useCallStore((s) => s.setActiveCall);
   const patchActiveCall = useCallStore((s) => s.patchActiveCall);
@@ -41,8 +34,12 @@ const useCallManager = () => {
   const localStreamRef = useRef(null);
   const remoteAudioRef = useRef(null);
   const unsubsRef = useRef([]);
+  const ringTimeoutRef = useRef(null);
+  const summaryWrittenRef = useRef(false);
+  // Контекст текущего звонка для записи summary (callee для caller'а)
+  const callContextRef = useRef(null);
 
-  // -------- Сброс ресурсов после конца звонка --------
+  // -------- Очистка ресурсов --------
   const teardown = useCallback(() => {
     unsubsRef.current.forEach((u) => {
       try {
@@ -52,6 +49,11 @@ const useCallManager = () => {
       }
     });
     unsubsRef.current = [];
+
+    if (ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
+    }
 
     if (pcRef.current) {
       try {
@@ -67,28 +69,86 @@ const useCallManager = () => {
     }
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
+      remoteAudioRef.current.remove();
       remoteAudioRef.current = null;
+    }
+    summaryWrittenRef.current = false;
+    callContextRef.current = null;
+  }, []);
+
+  // -------- Запись summary (только caller, ровно один раз) --------
+  const writeSummaryIfNeeded = useCallback(async (call) => {
+    if (summaryWrittenRef.current) return;
+    const ctx = callContextRef.current;
+    if (!ctx || ctx.role !== "caller") return;
+
+    summaryWrittenRef.current = true;
+
+    let status;
+    if (call?.status === "rejected") status = "rejected";
+    else if (call?.acceptedAt) status = "completed";
+    else status = "missed";
+
+    let durationSeconds = 0;
+    if (status === "completed" && call?.acceptedAt && call?.endedAt) {
+      try {
+        durationSeconds = Math.max(
+          0,
+          Math.round(
+            (call.endedAt.toMillis() - call.acceptedAt.toMillis()) / 1000,
+          ),
+        );
+      } catch {
+        /* noop */
+      }
+    }
+
+    try {
+      await sendCallSummary({
+        chatId: getPrivateChatId(ctx.caller.uid, ctx.peer.uid),
+        caller: ctx.caller,
+        peer: ctx.peer,
+        status,
+        durationSeconds,
+      });
+    } catch (err) {
+      console.error("[useCallManager] sendCallSummary failed:", err);
     }
   }, []);
 
-  // -------- Подписка на входящие звонки --------
+  // -------- Подписка на входящие --------
   useEffect(() => {
     if (!currentUser?.uid) return undefined;
     const startedAt = Date.now();
-    const unsub = subscribeIncomingCalls(currentUser.uid, (call) => {
-      // Игнорируем звонки, созданные ДО монтирования слушателя (бэкфилл снапшота)
-      const ts = call.createdAt?.toMillis?.() ?? 0;
-      if (ts && ts < startedAt) return;
 
-      // Если уже в активном или у нас уже стоит incoming — авто-отклоняем «занято»
-      if (activeCall || incomingCall) {
-        rejectCallDoc(call.id).catch(() => {});
+    const unsub = subscribeIncomingCalls(currentUser.uid, (calls) => {
+      // Игнорируем «застрявшие» ringing-документы, созданные ДО монтирования
+      const fresh = calls.filter(
+        (c) => (c.createdAt?.toMillis?.() ?? 0) >= startedAt,
+      );
+      const state = useCallStore.getState();
+
+      if (fresh.length === 0) {
+        // Звонящий отменил, либо принят/отклонён — закрываем модалку
+        if (state.incomingCall) state.setIncomingCall(null);
         return;
       }
-      setIncomingCall(call);
+
+      const first = fresh[0];
+
+      // Если уже в активном — авто-отклоняем «занято»
+      if (state.activeCall) {
+        rejectCallDoc(first.id).catch(() => {});
+        return;
+      }
+
+      if (!state.incomingCall || state.incomingCall.id !== first.id) {
+        state.setIncomingCall(first);
+      }
     });
+
     return () => unsub();
-  }, [currentUser?.uid, activeCall, incomingCall, setIncomingCall]);
+  }, [currentUser?.uid]);
 
   // -------- Подготовка PeerConnection (общий код для caller/callee) --------
   const buildPeerConnection = useCallback(
@@ -101,8 +161,6 @@ const useCallManager = () => {
 
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
-      // Удалённый аудиопоток — играем через тег <audio>, который создаём
-      // динамически и держим живым на время звонка
       pc.ontrack = (event) => {
         if (!remoteAudioRef.current) {
           const audio = document.createElement("audio");
@@ -119,46 +177,59 @@ const useCallManager = () => {
         }
       };
 
-      // ICE-кандидаты другой стороны
       unsubsRef.current.push(
         subscribeRemoteCandidates(callId, role, (cand) => {
           pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
         }),
       );
 
-      // Документ звонка: ждём answer (для caller) и реагируем на end/reject
       unsubsRef.current.push(
         subscribeCallDoc(callId, async (call) => {
           if (!call || call.status === "ended" || call.status === "rejected") {
+            await writeSummaryIfNeeded(call);
             teardown();
             reset();
             return;
           }
+          if (call.status === "active") {
+            // Сохраняем acceptedAt в контексте — пригодится для длительности
+            if (call.acceptedAt && callContextRef.current) {
+              callContextRef.current.acceptedAtMs = call.acceptedAt.toMillis();
+            }
+            patchActiveCall({ status: "active" });
+            // Принят → таймаут не нужен
+            if (ringTimeoutRef.current) {
+              clearTimeout(ringTimeoutRef.current);
+              ringTimeoutRef.current = null;
+            }
+          }
           if (role === "caller" && call.answer && !pc.currentRemoteDescription) {
             try {
               await pc.setRemoteDescription(new RTCSessionDescription(call.answer));
-              patchActiveCall({ status: "active" });
             } catch {
               /* noop */
             }
-          }
-          if (role === "callee" && call.status === "active") {
-            patchActiveCall({ status: "active" });
           }
         }),
       );
 
       return pc;
     },
-    [patchActiveCall, reset, teardown],
+    [patchActiveCall, reset, teardown, writeSummaryIfNeeded],
   );
 
-  // -------- Инициировать исходящий звонок --------
+  // -------- Исходящий звонок --------
   const startCall = useCallback(
     async (peer) => {
-      if (!currentUser || !peer || activeCall) return;
+      const state = useCallStore.getState();
+      if (!currentUser || !peer || state.activeCall) return;
 
       const callId = newCallId();
+      callContextRef.current = {
+        role: "caller",
+        caller: currentUser,
+        peer,
+      };
       setActiveCall({
         id: callId,
         role: "caller",
@@ -181,6 +252,12 @@ const useCallManager = () => {
           callee: peer,
           offer: { type: offer.type, sdp: offer.sdp },
         });
+
+        // Таймаут «не отвечает» — завершаем как missed, если за 30 сек не приняли
+        ringTimeoutRef.current = setTimeout(() => {
+          ringTimeoutRef.current = null;
+          endCallDoc(callId).catch(() => {});
+        }, RING_TIMEOUT_MS);
       } catch (err) {
         console.error("Не удалось начать звонок:", err);
         teardown();
@@ -188,62 +265,72 @@ const useCallManager = () => {
         alert("Не удалось начать звонок: " + (err?.message || "ошибка"));
       }
     },
-    [activeCall, buildPeerConnection, currentUser, reset, setActiveCall, teardown],
+    [buildPeerConnection, currentUser, reset, setActiveCall, teardown],
   );
 
-  // -------- Принять входящий звонок --------
+  // -------- Принять входящий --------
   const acceptCall = useCallback(async () => {
-    if (!incomingCall) return;
-    try {
-      setActiveCall({
-        id: incomingCall.id,
-        role: "callee",
-        peer: incomingCall.callerInfo,
-        status: "active",
-        startedAt: Date.now(),
-      });
-      setIncomingCall(null);
+    const state = useCallStore.getState();
+    const incoming = state.incomingCall;
+    if (!incoming) return;
 
-      const pc = await buildPeerConnection(incomingCall.id, "callee");
-      await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
+    callContextRef.current = {
+      role: "callee",
+      // Для callee summary не пишем, но контекст всё равно держим
+      caller: incoming.callerInfo,
+      peer: state.incomingCall.calleeInfo,
+    };
+    setActiveCall({
+      id: incoming.id,
+      role: "callee",
+      peer: incoming.callerInfo,
+      status: "active",
+      startedAt: Date.now(),
+    });
+    setIncomingCall(null);
+
+    try {
+      const pc = await buildPeerConnection(incoming.id, "callee");
+      await pc.setRemoteDescription(new RTCSessionDescription(incoming.offer));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-
-      await acceptCallDoc(incomingCall.id, { type: answer.type, sdp: answer.sdp });
+      await acceptCallDoc(incoming.id, { type: answer.type, sdp: answer.sdp });
     } catch (err) {
       console.error("Не удалось принять звонок:", err);
       teardown();
       reset();
       alert("Не удалось принять звонок: " + (err?.message || "ошибка"));
     }
-  }, [buildPeerConnection, incomingCall, reset, setActiveCall, setIncomingCall, teardown]);
+  }, [buildPeerConnection, reset, setActiveCall, setIncomingCall, teardown]);
 
-  // -------- Отклонить входящий --------
+  // -------- Отклонить --------
   const rejectCall = useCallback(async () => {
-    if (!incomingCall) return;
-    await rejectCallDoc(incomingCall.id).catch(() => {});
+    const incoming = useCallStore.getState().incomingCall;
+    if (!incoming) return;
+    await rejectCallDoc(incoming.id).catch(() => {});
     setIncomingCall(null);
-  }, [incomingCall, setIncomingCall]);
+  }, [setIncomingCall]);
 
   // -------- Завершить активный --------
   const endCall = useCallback(async () => {
-    if (activeCall) await endCallDoc(activeCall.id).catch(() => {});
-    teardown();
-    reset();
-  }, [activeCall, reset, teardown]);
+    const active = useCallStore.getState().activeCall;
+    if (active) await endCallDoc(active.id).catch(() => {});
+    // teardown/reset вызовет subscribeCallDoc-листенер по статусу "ended"
+  }, []);
 
-  // -------- Мьют/размьют микрофона --------
+  // -------- Мьют --------
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current;
     if (!stream) return;
-    const next = !isMuted;
+    const state = useCallStore.getState();
+    const next = !state.isMuted;
     stream.getAudioTracks().forEach((track) => {
       track.enabled = !next;
     });
     setMuted(next);
-  }, [isMuted, setMuted]);
+  }, [setMuted]);
 
-  // -------- Очистка при размонтировании --------
+  // -------- Cleanup при размонтировании --------
   useEffect(() => {
     return () => teardown();
   }, [teardown]);

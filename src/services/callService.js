@@ -108,12 +108,12 @@ export const subscribeCallDoc = (callId, onChange) =>
     logError("subscribeCallDoc"),
   );
 
-/** Слушать входящие «звонящие» звонки на мой uid. */
-export const subscribeIncomingCalls = (myUid, onIncoming) => {
-  // orderBy здесь убран намеренно: одновременно несколько ringing-вызовов
-  // на одного пользователя у нас невозможны (менеджер авто-отклоняет «занято»),
-  // а пустой orderBy снимает необходимость в композитном индексе и устраняет
-  // редкие гонки с serverTimestamp, который локально на миллисекунду = null.
+/**
+ * Слушать звонящие входящие звонки. onSnapshot отдаёт полный массив
+ * активно звонящих документов — менеджер сам решит, какой показать
+ * и когда закрыть (если звонящий отменил, документ выпадает из выборки).
+ */
+export const subscribeIncomingCalls = (myUid, onChange) => {
   const q = query(
     collection(db, "calls"),
     where("calleeUid", "==", myUid),
@@ -122,11 +122,7 @@ export const subscribeIncomingCalls = (myUid, onIncoming) => {
   return onSnapshot(
     q,
     (snap) => {
-      snap.docChanges().forEach((change) => {
-        if (change.type === "added") {
-          onIncoming({ id: change.doc.id, ...change.doc.data() });
-        }
-      });
+      onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     },
     logError("subscribeIncomingCalls"),
   );

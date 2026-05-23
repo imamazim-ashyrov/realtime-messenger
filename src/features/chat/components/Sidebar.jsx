@@ -60,11 +60,28 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
       case "audio":
         previewText = "🎤 Голосовое сообщение";
         break;
+      case "call": {
+        // sender в записи о звонке = тот, кто звонил
+        const iWasCaller = chat.lastMessage.senderId === currentUser.uid;
+        if (chat.lastMessage.callStatus === "completed") {
+          const d = chat.lastMessage.callDuration || 0;
+          const dur = d > 0 ? ` · ${Math.floor(d / 60)}:${String(Math.floor(d % 60)).padStart(2, "0")}` : "";
+          previewText = `📞 Звонок${dur}`;
+        } else if (chat.lastMessage.callStatus === "rejected") {
+          previewText = iWasCaller ? "📞 Отклонён" : "📞 Вы отклонили звонок";
+        } else {
+          // missed
+          previewText = iWasCaller ? "📞 Не дозвонился" : "📞 Пропущенный вызов";
+        }
+        break;
+      }
       default:
         previewText = decryptMessage(chat.lastMessage.text, chat.id);
     }
   }
-  const sentByMe = chat.lastMessage?.senderId === currentUser.uid;
+  // Префикс «Вы:» уместен только для обычных сообщений, не для системных звонков
+  const sentByMe =
+    chat.lastMessage?.senderId === currentUser.uid && chat.lastMessage?.type !== "call";
   const isSelected = selectedUser?.uid === peerUid;
 
   const handleClick = () => {
