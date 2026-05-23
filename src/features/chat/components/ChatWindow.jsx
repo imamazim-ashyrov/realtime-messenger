@@ -1,23 +1,22 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useAuthStore } from "../../../store/authStore";
 import { useChatStore } from "../../../store/chatStore";
-import { db, rtdb } from "../../../services/firebase";
-import { encryptMessage, decryptMessage } from "../../../utils/crypto";
+import { rtdb } from "../../../services/firebase";
+import { decryptMessage } from "../../../utils/crypto";
+import { getPrivateChatId } from "../../../utils/chat";
+import {
+  sendTextMessage,
+  sendImageMessage,
+  toggleReaction,
+  deleteForEveryone,
+  deleteForMe,
+  resetUnread,
+} from "../../../services/chatService";
 import useChatMessages from "../../../hooks/useChatMessages";
 import useTypingStatus from "../../../hooks/useTypingStatus";
 import MessagesList from "./MessagesList";
 import MessageActionsModal from "./MessageActionsModal";
 import ChatInput from "./ChatInput";
-import {
-  collection,
-  addDoc,
-  serverTimestamp,
-  doc,
-  deleteDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-} from "firebase/firestore";
 import { onValue, ref } from "firebase/database";
 
 const ChatWindow = () => {
@@ -34,7 +33,7 @@ const ChatWindow = () => {
 
   const chatId =
     selectedUser && currentUser
-      ? [currentUser.uid, selectedUser.uid].sort().join("_")
+      ? getPrivateChatId(currentUser.uid, selectedUser.uid)
       : null;
 
   useEffect(() => {
@@ -51,6 +50,13 @@ const ChatWindow = () => {
 
     return () => unsubscribe();
   }, [selectedUser]);
+
+  // Сбрасываем счётчик непрочитанных при открытии чата
+  useEffect(() => {
+    if (chatId && currentUser?.uid) {
+      resetUnread(chatId, currentUser.uid);
+    }
+  }, [chatId, currentUser?.uid]);
 
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return "";
@@ -93,16 +99,17 @@ const ChatWindow = () => {
     });
   }, []);
 
-  const handleIncomingMessage = useCallback(() => {
-    setTimeout(
-      () => scrollRef.current?.scrollIntoView({ behavior: "smooth" }),
-      100,
-    );
-  }, []);
+  const { messages } = useChatMessages(chatId, currentUser?.uid);
 
-  const { messages } = useChatMessages(chatId, currentUser?.uid, {
-    onNewIncomingMessage: handleIncomingMessage,
-  });
+  // Автоскролл вниз: при смене чата и при любом изменении длины списка
+  // сообщений (своя отправка / входящее / первая загрузка чата).
+  useEffect(() => {
+    if (!scrollRef.current) return undefined;
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [chatId, messages.length]);
 
   const { isPartnerTyping, handleTyping, resetTyping } = useTypingStatus(
     chatId,
@@ -122,29 +129,13 @@ const ChatWindow = () => {
     setReplyingTo(null);
 
     try {
-      const encryptedText = encryptMessage(text, chatId);
-
-      const newMessage = {
+      await sendTextMessage({
         chatId,
-        senderId: currentUser.uid,
-        text: encryptedText,
-        status: "sent",
-        createdAt: serverTimestamp(),
-      };
-
-      if (reply) {
-        newMessage.replyTo = {
-          messageId: reply.id,
-          text: reply.text || "",
-          hasImage: !!reply.imageUrl,
-          senderName:
-            reply.senderId === currentUser.uid
-              ? "Вы"
-              : selectedUser.displayName || "Собеседник",
-        };
-      }
-
-      await addDoc(collection(db, "messages"), newMessage);
+        sender: currentUser,
+        peer: selectedUser,
+        text,
+        replyTo: reply,
+      });
 
       playSendSound();
     } catch (error) {
@@ -154,16 +145,8 @@ const ChatWindow = () => {
 
   const handleToggleReaction = async (targetMessage, emoji) => {
     if (!targetMessage) return;
-
-    const reactedUsers = targetMessage.reactions?.[emoji] || [];
-    const alreadyReacted = reactedUsers.includes(currentUser.uid);
-
     try {
-      await updateDoc(doc(db, "messages", targetMessage.id), {
-        [`reactions.${emoji}`]: alreadyReacted
-          ? arrayRemove(currentUser.uid)
-          : arrayUnion(currentUser.uid),
-      });
+      await toggleReaction({ message: targetMessage, emoji, uid: currentUser.uid });
     } catch (error) {
       console.error("Ошибка при изменении реакции:", error);
     }
@@ -191,13 +174,11 @@ const ChatWindow = () => {
       const data = await response.json();
 
       if (data.success) {
-        await addDoc(collection(db, "messages"), {
+        await sendImageMessage({
           chatId,
-          senderId: currentUser.uid,
-          text: "",
+          sender: currentUser,
+          peer: selectedUser,
           imageUrl: data.data.url,
-          status: "sent",
-          createdAt: serverTimestamp(),
         });
       }
     } catch (error) {
@@ -214,7 +195,7 @@ const ChatWindow = () => {
     if (!activeMessage) return;
 
     try {
-      await deleteDoc(doc(db, "messages", activeMessage.id));
+      await deleteForEveryone(activeMessage.id);
       setActiveMessage(null);
     } catch (error) {
       console.error("Ошибка при удалении у всех:", error);
@@ -225,9 +206,7 @@ const ChatWindow = () => {
     if (!activeMessage) return;
 
     try {
-      await updateDoc(doc(db, "messages", activeMessage.id), {
-        deletedFor: arrayUnion(currentUser.uid),
-      });
+      await deleteForMe(activeMessage.id, currentUser.uid);
       setActiveMessage(null);
     } catch (error) {
       console.error("Ошибка при удалении у себя:", error);

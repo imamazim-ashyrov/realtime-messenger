@@ -59,6 +59,12 @@ const useChatMessages = (chatId, currentUserUid, { onNewIncomingMessage } = {}) 
             const msgRef = doc(db, "messages", msgId);
             batch.update(msgRef, { status: "read" });
           });
+          // Раз мы видим эти входящие сообщения — мы внутри чата.
+          // Сразу обнуляем счётчик непрочитанных, чтобы бейдж не появлялся,
+          // когда сообщение приходит в открытый чат.
+          batch.update(doc(db, "chats", chatId), {
+            [`unread.${currentUserUid}`]: 0,
+          });
           await batch.commit();
         } catch (error) {
           console.error("Ошибка при обновлении статуса:", error);

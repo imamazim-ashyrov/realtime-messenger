@@ -27,19 +27,25 @@ export const encryptMessage = (message, secretKey) => {
 export const decryptMessage = (encryptedMessage, secretKey) => {
   if (!encryptedMessage || !secretKey) return encryptedMessage;
 
+  // Шифротекст CryptoJS (формат OpenSSL) всегда начинается с "U2FsdGVkX1"
+  // (base64 от "Salted__"). Если префикса нет — это незашифрованный (legacy)
+  // текст, возвращаем как есть и не пытаемся расшифровать.
+  if (!encryptedMessage.startsWith("U2FsdGVkX1")) {
+    return encryptedMessage;
+  }
+
   try {
     const decrypted = CryptoJS.AES.decrypt(encryptedMessage, secretKey).toString(
       CryptoJS.enc.Utf8,
     );
 
-    // Если значение пусто, значит ключ был неверный
+    // Пустой результат или битый UTF-8 → ключ не подошёл
     if (!decrypted) {
       return "Сообщение зашифровано";
     }
 
     return decrypted;
-  } catch (error) {
-    console.error("Ошибка при расшифровке:", error);
+  } catch {
     return "Сообщение зашифровано";
   }
 };

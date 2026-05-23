@@ -1,0 +1,60 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Является ли текущий пользователь участником чата
+    function isMember(chatId) {
+      return isSignedIn()
+        && request.auth.uid in
+           get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+    }
+
+    // Профили пользователей: читать может любой авторизованный,
+    // менять — только владелец своего документа
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Чаты: доступ только участникам.
+    // resource == null разрешает чтение НЕсуществующего документа — это нужно
+    // транзакции отправки (tx.get проверяет, создан ли чат) и безопасно,
+    // т.к. отсутствующий документ не содержит данных.
+    match /chats/{chatId} {
+      allow read: if isSignedIn()
+        && (resource == null || request.auth.uid in resource.data.members);
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.members;
+      allow create: if isSignedIn()
+        && request.auth.uid in request.resource.data.members;
+    }
+
+    // Сообщения
+    match /messages/{messageId} {
+      // Читать может только участник чата
+      allow read: if isMember(resource.data.chatId);
+
+      // Создавать можно только сообщение от своего имени.
+      // (Проверку членства при создании не делаем, т.к. при отправке
+      //  первого сообщения чат создаётся в той же транзакции и ещё
+      //  не виден правилам — защищаемся проверкой senderId.)
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.senderId;
+
+      // Обновлять — участникам, и только безопасные поля:
+      // реакции, статус прочтения, скрытие сообщения у себя
+      allow update: if isMember(resource.data.chatId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['reactions', 'status', 'deletedFor']);
+
+      // Удалить у всех может только автор сообщения
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.senderId;
+    }
+  }
+}
