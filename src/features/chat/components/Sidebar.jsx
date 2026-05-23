@@ -13,6 +13,8 @@ import {
 import { decryptMessage } from "../../../utils/crypto";
 import { getPeerUid } from "../../../utils/chat";
 import useChats from "../../../hooks/useChats";
+import useNotifications from "../../../hooks/useNotifications";
+import useChatNotifications from "../../../hooks/useChatNotifications";
 import NewChatModal from "./NewChatModal";
 
 // Красивый вывод времени последнего сообщения
@@ -140,6 +142,20 @@ const Sidebar = () => {
   const selectedUser = useChatStore((state) => state.selectedUser);
 
   const { chats, isLoading } = useChats(currentUser.uid);
+  const {
+    permission: notifPermission,
+    isSupported: notifSupported,
+    requestPermission: requestNotifPermission,
+    notify,
+  } = useNotifications();
+
+  useChatNotifications({
+    chats,
+    currentUserUid: currentUser.uid,
+    selectedPeerUid: selectedUser?.uid,
+    notify,
+    onOpenChat: setSelectedUser,
+  });
 
   const handleLogout = async () => {
     try {
@@ -179,6 +195,40 @@ const Sidebar = () => {
           </h2>
         </div>
         <div className="flex items-center gap-2">
+          {notifSupported && (
+            <button
+              onClick={requestNotifPermission}
+              disabled={notifPermission === "denied"}
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${
+                notifPermission === "granted"
+                  ? "bg-blue-50 text-blue-600 hover:bg-blue-100"
+                  : notifPermission === "denied"
+                    ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+              title={
+                notifPermission === "granted"
+                  ? "Уведомления включены"
+                  : notifPermission === "denied"
+                    ? "Уведомления заблокированы в настройках браузера"
+                    : "Включить уведомления"
+              }
+              aria-label="Уведомления"
+            >
+              {notifPermission === "granted" ? (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 22a2.5 2.5 0 0 0 2.45-2H9.55A2.5 2.5 0 0 0 12 22zM18 16v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-2-2v-5a6 6 0 1 0-12 0v5l-2 2h5m6 0a3 3 0 1 1-6 0m6 0H9" />
+                  {notifPermission === "denied" && (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4l16 16" />
+                  )}
+                </svg>
+              )}
+            </button>
+          )}
           <button
             onClick={() => setShowNewChat(true)}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700"
