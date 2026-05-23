@@ -53,10 +53,15 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
   // Превью последнего сообщения
   let previewText = "Нет сообщений";
   if (chat.lastMessage) {
-    if (chat.lastMessage.type === "image") {
-      previewText = "📷 Фотография";
-    } else {
-      previewText = decryptMessage(chat.lastMessage.text, chat.id);
+    switch (chat.lastMessage.type) {
+      case "image":
+        previewText = "📷 Фотография";
+        break;
+      case "audio":
+        previewText = "🎤 Голосовое сообщение";
+        break;
+      default:
+        previewText = decryptMessage(chat.lastMessage.text, chat.id);
     }
   }
   const sentByMe = chat.lastMessage?.senderId === currentUser.uid;

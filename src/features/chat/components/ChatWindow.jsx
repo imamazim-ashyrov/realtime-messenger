@@ -7,6 +7,7 @@ import { getPrivateChatId } from "../../../utils/chat";
 import {
   sendTextMessage,
   sendImageMessage,
+  sendVoiceMessage,
   toggleReaction,
   deleteForEveryone,
   deleteForMe,
@@ -152,6 +153,23 @@ const ChatWindow = () => {
     },
     [currentUser?.uid],
   );
+
+  const handleSendVoice = async (blob, duration) => {
+    if (!chatId) return;
+    try {
+      await sendVoiceMessage({
+        chatId,
+        sender: currentUser,
+        peer: selectedUser,
+        blob,
+        duration,
+      });
+      playSendSound();
+    } catch (error) {
+      console.error("Ошибка при отправке голосового:", error);
+      alert(error?.message || "Не удалось отправить голосовое сообщение.");
+    }
+  };
 
   const handleImageUpload = async (e) => {
     const input = e.target;
@@ -324,6 +342,7 @@ const ChatWindow = () => {
         }}
         onSend={handleSendMessage}
         onImageUpload={handleImageUpload}
+        onSendVoice={handleSendVoice}
         isUploading={isUploading}
         replyContext={
           replyingTo

@@ -12,6 +12,20 @@ import {
 } from "firebase/firestore";
 import { encryptMessage } from "../utils/crypto";
 
+// Аудио кодируется в base64 data-URL и кладётся прямо в документ сообщения.
+// Преимущества: ноль внешних сервисов и CORS, всё работает поверх существующих
+// правил Firestore. Ограничение: документ Firestore ≤1 МБ, поэтому в
+// useVoiceRecorder ограничиваем длительность 60 секундами.
+const MAX_VOICE_DOC_BYTES = 900 * 1024; // запас до лимита Firestore в 1 MB
+
+const blobToDataUrl = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+
 /**
  * Сервисный слой чата: вся запись в Firestore (сообщения + денормализованный
  * документ чата) собрана здесь, чтобы компоненты не знали деталей хранилища.
@@ -106,6 +120,25 @@ export const sendImageMessage = async ({ chatId, sender, peer, imageUrl }) => {
     peer,
     messageData: { text: "", imageUrl },
     preview: { text: "", type: "image" },
+  });
+};
+
+/**
+ * Кодирует голосовое в base64 data-URL и отправляет сообщение.
+ * @param {{ chatId, sender, peer, blob: Blob, duration: number }} args
+ */
+export const sendVoiceMessage = async ({ chatId, sender, peer, blob, duration }) => {
+  const audioUrl = await blobToDataUrl(blob);
+  if (audioUrl.length > MAX_VOICE_DOC_BYTES) {
+    throw new Error("Голосовое слишком длинное — лимит примерно 60 секунд.");
+  }
+
+  await writeMessage({
+    chatId,
+    sender,
+    peer,
+    messageData: { text: "", audioUrl, audioDuration: duration },
+    preview: { text: "", type: "audio" },
   });
 };
 

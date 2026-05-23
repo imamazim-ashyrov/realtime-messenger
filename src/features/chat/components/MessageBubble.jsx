@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { decryptMessage } from "../../../utils/crypto";
+import VoiceMessage from "./VoiceMessage";
 
 const MessageBubble = ({
   msg,
@@ -76,6 +77,14 @@ const MessageBubble = ({
                 src={msg.imageUrl}
                 alt="Вложение"
                 className="rounded-md max-w-full h-auto mb-1 max-h-64 object-cover"
+              />
+            )}
+
+            {msg.audioUrl && (
+              <VoiceMessage
+                audioUrl={msg.audioUrl}
+                durationHint={msg.audioDuration || 0}
+                isCurrentUser={isCurrentUser}
               />
             )}
 
