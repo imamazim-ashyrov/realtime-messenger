@@ -53,8 +53,8 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-100 dark:bg-gray-950">
-        <div className="text-xl font-semibold text-gray-500 dark:text-gray-400">
+      <div className="flex min-h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
+        <div className="text-xl font-semibold text-slate-500 dark:text-slate-400">
           Проверка авторизации...
         </div>
       </div>

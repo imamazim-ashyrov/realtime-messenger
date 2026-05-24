@@ -8,7 +8,7 @@ import {
   increment,
   arrayUnion,
   arrayRemove,
-  runTransaction,
+  writeBatch,
 } from "firebase/firestore";
 import { encryptMessage } from "../utils/crypto";
 
@@ -39,58 +39,66 @@ const toMemberInfo = (u) => ({
 
 /**
  * Атомарно создаёт сообщение и обновляет родительский чат (lastMessage, unread).
- * Если чат ещё не существует — создаёт его в той же транзакции.
+ *
+ * Используется writeBatch + setDoc(merge) — без runTransaction. Раньше была
+ * транзакция с tx.get(chat) и conditional set/update; SDK навешивал
+ * currentDocument.updateTime precondition, и любой конкурентный write по
+ * этому же chat-документу (например, resetUnread при открытии чата) валил
+ * commit с failed-precondition. SDK ретраил, но при контеншене мог сдаться.
+ *
+ * setDoc(merge:true) с increment в nested unread-map работает атомарно без
+ * preconditions: первое сообщение создаёт чат целиком, последующие —
+ * аккуратно мерджат lastMessage / lastMessageAt и инкрементят unread.{peer}.
  */
 const writeMessage = async ({ chatId, sender, peer, messageData, preview }) => {
   const chatRef = doc(db, "chats", chatId);
+  const msgRef = doc(collection(db, "messages"));
 
-  await runTransaction(db, async (tx) => {
-    const chatSnap = await tx.get(chatRef);
-    const msgRef = doc(collection(db, "messages"));
+  const lastMessage = {
+    ...preview,
+    senderId: sender.uid,
+  };
 
-    tx.set(msgRef, {
-      chatId,
-      senderId: sender.uid,
-      status: "sent",
-      createdAt: serverTimestamp(),
-      ...messageData,
-    });
+  const batch = writeBatch(db);
 
-    // Спред превью даёт возможность типам сообщений (call, audio, image, ...)
-    // прокидывать дополнительные поля (callStatus, callDuration и т.д.).
-    const lastMessage = {
-      ...preview,
-      senderId: sender.uid,
-    };
-
-    if (!chatSnap.exists()) {
-      tx.set(chatRef, {
-        type: "private",
-        members: [sender.uid, peer.uid],
-        memberInfo: {
-          [sender.uid]: toMemberInfo(sender),
-          [peer.uid]: toMemberInfo(peer),
-        },
-        createdAt: serverTimestamp(),
-        createdBy: sender.uid,
-        lastMessage,
-        lastMessageAt: serverTimestamp(),
-        unread: { [sender.uid]: 0, [peer.uid]: 1 },
-      });
-    } else {
-      tx.update(chatRef, {
-        lastMessage,
-        lastMessageAt: serverTimestamp(),
-        [`unread.${peer.uid}`]: increment(1),
-      });
-    }
+  batch.set(msgRef, {
+    chatId,
+    senderId: sender.uid,
+    status: "sent",
+    createdAt: serverTimestamp(),
+    ...messageData,
   });
+
+  // Поля справа от merge:true деревьями сольются с существующими; для
+  // несуществующего чата создастся документ с этой шапкой целиком.
+  // unread.{peer} через increment() инкрементится атомарно, не затирая
+  // unread.{другие участники}.
+  batch.set(
+    chatRef,
+    {
+      type: "private",
+      members: [sender.uid, peer.uid],
+      memberInfo: {
+        [sender.uid]: toMemberInfo(sender),
+        [peer.uid]: toMemberInfo(peer),
+      },
+      lastMessage,
+      lastMessageAt: serverTimestamp(),
+      unread: { [peer.uid]: increment(1) },
+    },
+    { merge: true },
+  );
+
+  await batch.commit();
 };
 
-/** Отправка текстового сообщения (текст шифруется ключом = chatId). */
-export const sendTextMessage = async ({ chatId, sender, peer, text, replyTo }) => {
+/** Отправка текстового сообщения (текст шифруется ключом = chatId).
+ *  clientId опционально: ChatWindow генерит его при оптимистичном insert,
+ *  чтобы потом сматчить пришедшее с подпиской сообщение с локальным pending. */
+export const sendTextMessage = async ({ chatId, sender, peer, text, replyTo, clientId }) => {
   const encryptedText = encryptMessage(text, chatId);
   const messageData = { text: encryptedText };
+  if (clientId) messageData.clientId = clientId;
   if (replyTo) {
     messageData.replyTo = {
       messageId: replyTo.id,
@@ -108,7 +116,6 @@ export const sendTextMessage = async ({ chatId, sender, peer, text, replyTo }) =
     sender,
     peer,
     messageData,
-    // В превью чата кладём тот же зашифрованный текст — расшифруем при отображении
     preview: { text: encryptedText, type: "text" },
   });
 };

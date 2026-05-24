@@ -1,7 +1,14 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
+import { Virtuoso } from "react-virtuoso";
 import MessageBubble from "./MessageBubble";
 
-const NEAR_BOTTOM_THRESHOLD = 120;
+// List передаётся react-virtuoso как контейнер виртуализованных строк;
+// форвардит ref внутрь, поэтому override должен быть forwardRef.
+const ListContainer = forwardRef(function ListContainer(props, ref) {
+  return <div {...props} ref={ref} className="px-4" />;
+});
+
+const ListHeader = () => <div className="h-4" aria-hidden="true" />;
 
 const sameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() &&
@@ -29,8 +36,8 @@ const formatDayLabel = (date) => {
   });
 };
 
-// MessagesList монтируется заново при каждой смене чата (key={chatId} в
-// ChatWindow). Это даёт чистое начальное состояние без ref-трекеров.
+// MessagesList монтируется заново при каждой смене чата (key={chatId}
+// в ChatWindow). Внутри — react-virtuoso: рендерит только видимые элементы.
 const MessagesList = ({
   messages,
   currentUserUid,
@@ -38,80 +45,178 @@ const MessagesList = ({
   onMessageClick,
   onToggleReaction,
 }) => {
-  const containerRef = useRef(null);
-  const visibleMessages = messages.filter(
-    (msg) => !msg.deletedFor?.includes(currentUserUid),
-  );
-  const messagesCount = visibleMessages.length;
+  const virtuosoRef = useRef(null);
+  const scrollerElRef = useRef(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const [unseenCount, setUnseenCount] = useState(0);
 
-  // anchorLen — длина списка на момент когда пользователь был у низа;
-  // всё, что появилось сверх неё, идёт в счётчик «непрочитанных» в плашке.
-  const [isNearBottom, setIsNearBottom] = useState(true);
-  const [anchorLen, setAnchorLen] = useState(messagesCount);
+  // Данные + флаги группировки/разделителей за один проход + спейсер в конце.
+  // Спейсер — обычный item, поэтому scrollToIndex(last, end) дотягивает до
+  // самого низа включая отступ перед input (в отличие от Virtuoso Footer'а,
+  // который не участвует в scrollToIndex-математике).
+  const { dataItems, renderedItems } = useMemo(() => {
+    const GROUP_GAP_MS = 2 * 60 * 1000;
+    const visibleMessages = messages.filter(
+      (msg) => !msg.deletedFor?.includes(currentUserUid),
+    );
+    const out = [];
+    let lastDate = null;
+    let lastSenderId = null;
+    let lastTimeMs = null;
 
-  const unseenCount = isNearBottom
-    ? 0
-    : visibleMessages
-        .slice(anchorLen)
-        .filter((m) => m.senderId !== currentUserUid).length;
+    visibleMessages.forEach((msg) => {
+      const ts = msg.createdAt?.toDate?.();
+      let dayChanged = false;
+      if (ts && (!lastDate || !sameDay(ts, lastDate))) {
+        out.push({
+          type: "separator",
+          key: `sep-${ts.getTime()}`,
+          label: formatDayLabel(ts),
+        });
+        lastDate = ts;
+        dayChanged = true;
+      }
+      const sameSender = msg.senderId === lastSenderId;
+      const closeInTime =
+        lastTimeMs && ts && ts.getTime() - lastTimeMs < GROUP_GAP_MS;
+      const isFirstInGroup = dayChanged || !sameSender || !closeInTime;
+      out.push({ type: "msg", key: msg.id, msg, isFirstInGroup });
+      lastSenderId = msg.senderId;
+      lastTimeMs = ts ? ts.getTime() : lastTimeMs;
+    });
 
-  const handleScroll = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    const distanceFromBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight;
-    const near = distanceFromBottom < NEAR_BOTTOM_THRESHOLD;
-    setIsNearBottom(near);
-    if (near) setAnchorLen(messagesCount);
-  };
+    for (let i = 0; i < out.length; i++) {
+      if (out[i].type !== "msg") continue;
+      let isLast = true;
+      for (let j = i + 1; j < out.length; j++) {
+        if (out[j].type === "msg") {
+          isLast = out[j].isFirstInGroup;
+          break;
+        }
+      }
+      out[i].isLastInGroup = isLast;
+    }
 
-  // Маунт + первая отрисовка — мгновенно к низу.
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, []);
+    const rendered = [...out, { type: "spacer", key: "bottom-spacer" }];
+    return { dataItems: out, renderedItems: rendered };
+  }, [messages, currentUserUid]);
 
-  // Новое сообщение при положении у низа — плавно вниз.
+  // Стартовая позиция: на первом непрочитанном сообщении (incoming + status=sent).
+  // Если непрочитанных нет — на последнем элементе данных (= у низа).
+  // Считается при первом рендере когда messages не пустые. Дальше не меняется.
+  const [initialIndex, setInitialIndex] = useState(null);
+  if (initialIndex === null && dataItems.length > 0) {
+    let firstUnread = -1;
+    for (let i = 0; i < dataItems.length; i++) {
+      const it = dataItems[i];
+      if (
+        it.type === "msg" &&
+        it.msg.senderId !== currentUserUid &&
+        it.msg.status === "sent"
+      ) {
+        firstUnread = i;
+        break;
+      }
+    }
+    if (firstUnread >= 0) {
+      // Первое непрочитанное — выравниваем к верху viewport, чтобы пользователь
+      // видел: «вот отсюда новое, выше — уже прочитанное».
+      setInitialIndex({ index: firstUnread, align: "start", offset: -8 });
+    } else {
+      // Нет непрочитанных — стартуем у самого низа через спейсер.
+      setInitialIndex({
+        index: renderedItems.length - 1,
+        align: "end",
+      });
+    }
+  }
+
+  // Подсчёт «непрочитанных» пока пользователь не у низа (плашка на стрелке).
+  const [anchorCount, setAnchorCount] = useState(dataItems.length);
+  if (atBottom) {
+    if (anchorCount !== dataItems.length) setAnchorCount(dataItems.length);
+    if (unseenCount !== 0) setUnseenCount(0);
+  } else if (dataItems.length > anchorCount) {
+    const newOnes = dataItems
+      .slice(anchorCount)
+      .filter((it) => it.type === "msg" && it.msg.senderId !== currentUserUid).length;
+    const nextCount = dataItems.length;
+    if (newOnes > 0) {
+      setAnchorCount(nextCount);
+      setUnseenCount((c) => c + newOnes);
+    } else if (anchorCount !== nextCount) {
+      setAnchorCount(nextCount);
+    }
+  }
+
+  // При отправке своего сообщения дожимаем скролл до спейсера (= самого низа).
+  const lastDataItem = dataItems[dataItems.length - 1];
+  const lastIsOwn =
+    lastDataItem?.type === "msg" && lastDataItem.msg.senderId === currentUserUid;
+  const lastItemKey = lastDataItem?.key;
+
   useEffect(() => {
-    if (!isNearBottom) return;
-    const el = containerRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messagesCount, isNearBottom]);
+    if (!lastIsOwn || renderedItems.length === 0) return undefined;
+    // Два rAF: рендер новой строки → измерение react-virtuoso → корректный scroll.
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({
+          index: renderedItems.length - 1,
+          align: "end",
+          behavior: "smooth",
+        });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [lastItemKey, lastIsOwn, renderedItems.length]);
 
   const scrollToBottom = () => {
-    const el = containerRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (renderedItems.length === 0) return;
+    virtuosoRef.current?.scrollToIndex({
+      index: renderedItems.length - 1,
+      align: "end",
+      behavior: "smooth",
+    });
   };
 
-  // Группировка по датам.
-  const renderedItems = [];
-  let lastDate = null;
-  visibleMessages.forEach((msg) => {
-    const ts = msg.createdAt?.toDate?.();
-    if (ts && (!lastDate || !sameDay(ts, lastDate))) {
-      renderedItems.push({
-        type: "separator",
-        key: `sep-${ts.getTime()}`,
-        label: formatDayLabel(ts),
-      });
-      lastDate = ts;
-    }
-    renderedItems.push({ type: "msg", key: msg.id, msg });
-  });
+  // Пока сообщения не подгрузились — пустой фон чата, без Virtuoso.
+  // initialTopMostItemIndex считывается только на маунте, и пустой массив
+  // дал бы initialIndex=null → стартовая позиция была бы некорректной.
+  if (dataItems.length === 0 || initialIndex === null) {
+    return <div className="absolute inset-0 overflow-hidden bg-chat-pattern" />;
+  }
 
   return (
-    <div className="absolute inset-0 overflow-hidden">
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        className="h-full overflow-y-auto px-4 pt-4 pb-28 bg-chat-pattern"
-      >
-        {renderedItems.map((item) => {
+    <div className="absolute inset-0 overflow-hidden bg-chat-pattern">
+      <Virtuoso
+        ref={virtuosoRef}
+        scrollerRef={(el) => {
+          scrollerElRef.current = el;
+        }}
+        data={renderedItems}
+        initialTopMostItemIndex={initialIndex}
+        // Для чужих сообщений: автоскролл только если пользователь и так у низа.
+        // Свои сообщения обрабатываются эффектом выше.
+        followOutput={(isAtBottom) => (isAtBottom ? "smooth" : false)}
+        atBottomStateChange={setAtBottom}
+        atBottomThreshold={120}
+        className="h-full"
+        components={{
+          List: ListContainer,
+          Header: ListHeader,
+        }}
+        itemContent={(_index, item) => {
+          if (item.type === "spacer") {
+            return <div className="h-6" aria-hidden="true" />;
+          }
           if (item.type === "separator") {
             return (
-              <div key={item.key} className="flex justify-center my-4">
-                <span className="rounded-full bg-white/70 dark:bg-gray-800/70 backdrop-blur px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 shadow-sm border border-gray-200/60 dark:border-gray-700/60">
+              <div className="flex justify-center my-4">
+                <span className="rounded-full bg-white/70 dark:bg-slate-800/70 backdrop-blur px-3 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 shadow-sm border border-slate-200/60 dark:border-slate-700/60">
                   {item.label}
                 </span>
               </div>
@@ -119,24 +224,25 @@ const MessagesList = ({
           }
           return (
             <MessageBubble
-              key={item.key}
               msg={item.msg}
               chatId={chatId}
               currentUserUid={currentUserUid}
               isCurrentUser={item.msg.senderId === currentUserUid}
+              isFirstInGroup={item.isFirstInGroup}
+              isLastInGroup={item.isLastInGroup}
               onSelect={onMessageClick}
               onReact={onToggleReaction}
             />
           );
-        })}
-      </div>
+        }}
+      />
 
       <button
         type="button"
         onClick={scrollToBottom}
         aria-label="К последним сообщениям"
-        className={`absolute right-4 bottom-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-700 ${
-          isNearBottom ? "opacity-0 translate-y-2 pointer-events-none" : "opacity-100 translate-y-0"
+        className={`absolute right-4 bottom-4 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 shadow-lg border border-slate-200 dark:border-slate-700 transition-all duration-200 hover:bg-slate-50 dark:hover:bg-slate-700 ${
+          atBottom ? "opacity-0 translate-y-2 pointer-events-none" : "opacity-100 translate-y-0"
         }`}
       >
         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

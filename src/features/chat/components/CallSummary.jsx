@@ -35,7 +35,7 @@ const CallSummary = ({ msg, isCurrentUser }) => {
         className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs shadow-sm ${
           isDanger
             ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
-            : "border-gray-200 bg-white text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
         }`}
       >
         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">

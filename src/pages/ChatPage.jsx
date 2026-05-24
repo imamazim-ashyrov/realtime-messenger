@@ -12,7 +12,7 @@ const ChatPage = () => {
   const isMuted = useCallStore((s) => s.isMuted);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-dvh overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Sidebar />
       <ChatWindow onStartCall={startCall} />
 

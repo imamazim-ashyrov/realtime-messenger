@@ -21,14 +21,14 @@ const IncomingCallModal = ({ call, onAccept, onReject }) => {
 
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-gray-900 border dark:border-gray-800 p-8 shadow-2xl text-center">
+      <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border dark:border-slate-800 p-8 shadow-2xl text-center">
         <div className="mx-auto mb-4 w-fit">
-          <Avatar url={avatarUrl} displayName={name} size="xl" pulse />
+          <Avatar url={avatarUrl} displayName={name} colorKey={call.callerUid} size="xl" pulse />
         </div>
-        <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+        <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">
           Входящий звонок
         </p>
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-8">
+        <h3 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-8">
           {name}
         </h3>
 
@@ -43,7 +43,7 @@ const IncomingCallModal = ({ call, onAccept, onReject }) => {
                 <path d="M20.487 17.14l-4.065-3.696a1.001 1.001 0 0 0-1.391.043l-2.393 2.461c-.576-.11-1.734-.471-2.926-1.66-1.192-1.193-1.553-2.354-1.66-2.926l2.459-2.394a1 1 0 0 0 .043-1.391L6.859 3.513a1 1 0 0 0-1.391-.087l-2.17 1.86a1 1 0 0 0-.29.649c-.015.25-.301 6.172 4.291 10.766C11.305 20.707 16.323 21 17.705 21c.202 0 .326-.006.359-.008a.991.991 0 0 0 .648-.291l1.86-2.171a.997.997 0 0 0-.085-1.39z" />
               </svg>
             </span>
-            <span className="text-xs text-gray-600 dark:text-gray-300">Отклонить</span>
+            <span className="text-xs text-slate-600 dark:text-slate-300">Отклонить</span>
           </button>
 
           <button
@@ -56,7 +56,7 @@ const IncomingCallModal = ({ call, onAccept, onReject }) => {
                 <path d="M20.487 17.14l-4.065-3.696a1.001 1.001 0 0 0-1.391.043l-2.393 2.461c-.576-.11-1.734-.471-2.926-1.66-1.192-1.193-1.553-2.354-1.66-2.926l2.459-2.394a1 1 0 0 0 .043-1.391L6.859 3.513a1 1 0 0 0-1.391-.087l-2.17 1.86a1 1 0 0 0-.29.649c-.015.25-.301 6.172 4.291 10.766C11.305 20.707 16.323 21 17.705 21c.202 0 .326-.006.359-.008a.991.991 0 0 0 .648-.291l1.86-2.171a.997.997 0 0 0-.085-1.39z" />
               </svg>
             </span>
-            <span className="text-xs text-gray-600 dark:text-gray-300">Принять</span>
+            <span className="text-xs text-slate-600 dark:text-slate-300">Принять</span>
           </button>
         </div>
       </div>

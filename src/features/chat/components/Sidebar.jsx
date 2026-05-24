@@ -15,9 +15,8 @@ import { getPeerUid } from "../../../utils/chat";
 import useChats from "../../../hooks/useChats";
 import useNotifications from "../../../hooks/useNotifications";
 import useChatNotifications from "../../../hooks/useChatNotifications";
-import useTheme from "../../../hooks/useTheme";
 import NewChatModal from "./NewChatModal";
-import ProfileModal from "./ProfileModal";
+import SettingsModal from "./SettingsModal";
 import Avatar from "../../../components/Avatar";
 
 const formatTime = (timestamp) => {
@@ -94,22 +93,23 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
   return (
     <div
       onClick={handleClick}
-      className={`flex items-center space-x-3 border-b border-gray-50 dark:border-gray-800 p-3 sm:p-4 cursor-pointer transition-all ${
+      className={`flex items-center space-x-3 border-b border-slate-50 dark:border-slate-800 p-3 sm:p-4 cursor-pointer transition-all ${
         isSelected
-          ? "bg-blue-100 dark:bg-gray-800"
-          : "hover:bg-blue-50 dark:hover:bg-gray-800/60"
+          ? "bg-blue-100 dark:bg-slate-800"
+          : "hover:bg-blue-50 dark:hover:bg-slate-800/60"
       } ${flash ? "animate-chat-flash" : ""}`}
     >
       <Avatar
         url={peerInfo.avatarUrl}
         displayName={peerInfo.displayName}
+        colorKey={peerUid}
         size="md"
         online={isOnline}
       />
 
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-1">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
             {peerInfo.displayName || "Пользователь"}
           </h3>
           {chat.lastMessageAt && (
@@ -117,7 +117,7 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
               className={`text-xs whitespace-nowrap ml-2 ${
                 unreadCount > 0
                   ? "text-blue-500 dark:text-blue-400 font-bold"
-                  : "text-gray-400 dark:text-gray-500"
+                  : "text-slate-400 dark:text-slate-500"
               }`}
             >
               {formatTime(chat.lastMessageAt)}
@@ -129,11 +129,11 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
           <p
             className={`text-sm truncate ${
               unreadCount > 0
-                ? "text-gray-900 dark:text-gray-100 font-semibold"
-                : "text-gray-500 dark:text-gray-400"
+                ? "text-slate-900 dark:text-slate-100 font-semibold"
+                : "text-slate-500 dark:text-slate-400"
             }`}
           >
-            {sentByMe && <span className="text-gray-400 dark:text-gray-500">Вы: </span>}
+            {sentByMe && <span className="text-slate-400 dark:text-slate-500">Вы: </span>}
             {previewText}
           </p>
 
@@ -151,8 +151,7 @@ const ChatListItem = ({ chat, currentUser, selectedUser, setSelectedUser, isOnli
 const Sidebar = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+  const [settingsTab, setSettingsTab] = useState(null); // null | "profile" | "appearance" | ...
   const [search, setSearch] = useState("");
   const [userStatuses, setUserStatuses] = useState({});
   const [flashChatId, setFlashChatId] = useState(null);
@@ -163,13 +162,7 @@ const Sidebar = () => {
   const selectedUser = useChatStore((state) => state.selectedUser);
 
   const { chats, isLoading } = useChats(currentUser.uid);
-  const { theme, toggleTheme } = useTheme();
-  const {
-    permission: notifPermission,
-    isSupported: notifSupported,
-    requestPermission: requestNotifPermission,
-    notify,
-  } = useNotifications();
+  const { notify } = useNotifications();
 
   useChatNotifications({
     chats,
@@ -195,19 +188,6 @@ const Sidebar = () => {
     const t = setTimeout(() => setFlashChatId(null), 900);
     return () => clearTimeout(t);
   }, [flashChatId]);
-
-  // Клик вне меню — закрыть. Без ref: вешаем listener на document и
-  // проверяем target.closest по data-атрибуту.
-  useEffect(() => {
-    if (!showMenu) return undefined;
-    const onClick = (e) => {
-      if (!e.target.closest("[data-sidebar-menu]")) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [showMenu]);
 
   const handleLogout = async () => {
     try {
@@ -246,27 +226,30 @@ const Sidebar = () => {
 
   return (
     <div
-      className={`flex-col border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 ${
+      className={`flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 ${
         selectedUser ? "hidden md:flex" : "flex w-full"
       } md:w-1/3`}
     >
       {/* Шапка */}
-      <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-950 p-4">
+      <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 p-4">
         <button
-          onClick={() => setShowProfile(true)}
-          className="flex items-center gap-3 min-w-0 cursor-pointer rounded-lg p-1 -m-1 transition hover:bg-gray-200 dark:hover:bg-gray-800"
+          onClick={() => setSettingsTab("profile")}
+          className="flex items-center gap-3 min-w-0 cursor-pointer rounded-lg p-1 -m-1 transition hover:bg-slate-200 dark:hover:bg-slate-800"
           title="Профиль"
         >
           <Avatar
             url={currentUser.photoURL || currentUser.avatarUrl}
             displayName={currentUser.displayName || currentUser.email}
+            colorKey={currentUser.uid}
             size="sm"
           />
           <div className="flex flex-col min-w-0 text-left">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Вы вошли:</span>
-            <h2 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
               {currentUser.displayName || currentUser.email}
             </h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+              {currentUser.email}
+            </span>
           </div>
         </button>
 
@@ -282,103 +265,25 @@ const Sidebar = () => {
             </svg>
           </button>
 
-          {/* Меню «три точки» — тема, уведомления, выход */}
-          <div className="relative" data-sidebar-menu>
-            <button
-              onClick={() => setShowMenu((v) => !v)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-300 transition hover:bg-gray-300 dark:hover:bg-gray-700"
-              title="Меню"
-              aria-label="Меню"
-              aria-expanded={showMenu}
-            >
-              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                <circle cx="12" cy="5" r="2" />
-                <circle cx="12" cy="12" r="2" />
-                <circle cx="12" cy="19" r="2" />
-              </svg>
-            </button>
-
-            {showMenu && (
-              <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-50 animate-modal-in">
-                <button
-                  type="button"
-                  onClick={() => {
-                    toggleTheme();
-                    setShowMenu(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-200 transition hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  {theme === "dark" ? (
-                    <svg className="h-5 w-5 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 17a5 5 0 110-10 5 5 0 010 10zm0 2a7 7 0 100-14 7 7 0 000 14zm-1-17h2v3h-2V2zm0 17h2v3h-2v-3zM2 11h3v2H2v-2zm17 0h3v2h-3v-2zM4.22 4.22l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm14.14 14.14l2.12 2.12-1.42 1.42-2.12-2.12 1.42-1.42zm0-12.72l1.42 1.42-2.12 2.12-1.42-1.42 2.12-2.12zM4.22 19.78l1.42-1.42 2.12 2.12-1.42 1.42-2.12-2.12z" />
-                    </svg>
-                  ) : (
-                    <svg className="h-5 w-5 text-indigo-500" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-                    </svg>
-                  )}
-                  <span>{theme === "dark" ? "Светлая тема" : "Тёмная тема"}</span>
-                </button>
-
-                {notifSupported && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      requestNotifPermission();
-                      setShowMenu(false);
-                    }}
-                    disabled={notifPermission === "denied"}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-gray-700 dark:text-gray-200 transition hover:bg-gray-100 dark:hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <svg
-                      className={`h-5 w-5 ${
-                        notifPermission === "granted"
-                          ? "text-blue-500"
-                          : notifPermission === "denied"
-                            ? "text-gray-400"
-                            : "text-gray-500"
-                      }`}
-                      viewBox="0 0 24 24"
-                      fill="currentColor"
-                    >
-                      <path d="M12 22a2.5 2.5 0 0 0 2.45-2H9.55A2.5 2.5 0 0 0 12 22zM18 16v-5a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2z" />
-                    </svg>
-                    <span>
-                      {notifPermission === "granted"
-                        ? "Уведомления включены"
-                        : notifPermission === "denied"
-                          ? "Уведомления заблокированы"
-                          : "Включить уведомления"}
-                    </span>
-                  </button>
-                )}
-
-                <div className="border-t border-gray-100 dark:border-gray-700" />
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMenu(false);
-                    setShowLogoutConfirm(true);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-900/30"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  <span>Выйти</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setSettingsTab("appearance")}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 transition hover:bg-slate-300 dark:hover:bg-slate-700"
+            title="Настройки"
+            aria-label="Настройки"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
         </div>
       </div>
 
       {/* Поиск чатов */}
-      <div className="border-b border-gray-100 dark:border-gray-800 p-3">
+      <div className="border-b border-slate-100 dark:border-slate-800 p-3">
         <div className="relative">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500"
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -390,13 +295,13 @@ const Sidebar = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по чатам…"
-            className="w-full rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 pl-10 pr-9 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40"
+            className="w-full rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 pl-10 pr-9 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40"
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-600 dark:hover:text-gray-300"
+              className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300"
               aria-label="Очистить поиск"
             >
               <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -410,9 +315,20 @@ const Sidebar = () => {
       {/* Список чатов */}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
-          <p className="mt-10 text-center text-sm text-gray-400 dark:text-gray-500">
-            Загрузка чатов…
-          </p>
+          <div>
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex items-center space-x-3 border-b border-slate-50 dark:border-slate-800 p-3 sm:p-4"
+              >
+                <div className="skeleton h-12 w-12 shrink-0 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton h-3 w-2/3 rounded" />
+                  <div className="skeleton h-3 w-1/2 rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : filteredChats.length > 0 ? (
           filteredChats.map((chat) => {
             const peerUid = getPeerUid(chat.members, currentUser.uid);
@@ -430,11 +346,11 @@ const Sidebar = () => {
             );
           })
         ) : chats.length > 0 ? (
-          <p className="mt-10 px-6 text-center text-sm text-gray-400 dark:text-gray-500">
+          <p className="mt-10 px-6 text-center text-sm text-slate-400 dark:text-slate-500">
             По запросу «{search}» ничего не найдено
           </p>
         ) : (
-          <div className="mt-10 px-6 text-center text-sm text-gray-400 dark:text-gray-500">
+          <div className="mt-10 px-6 text-center text-sm text-slate-400 dark:text-slate-500">
             <p>У вас пока нет чатов.</p>
             <button
               onClick={() => setShowNewChat(true)}
@@ -457,20 +373,25 @@ const Sidebar = () => {
         />
       )}
 
-      {showProfile && (
-        <ProfileModal
+      {settingsTab && (
+        <SettingsModal
           currentUser={currentUser}
-          onClose={() => setShowProfile(false)}
+          initialTab={settingsTab}
+          onLogout={() => {
+            setSettingsTab(null);
+            setShowLogoutConfirm(true);
+          }}
+          onClose={() => setSettingsTab(null)}
         />
       )}
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-sm rounded-lg bg-white dark:bg-gray-900 border dark:border-gray-800 p-6 shadow-xl text-center animate-modal-in">
-            <h3 className="mb-2 text-xl font-bold text-gray-900 dark:text-gray-100">
+          <div className="w-full max-w-sm rounded-lg bg-white dark:bg-slate-900 border dark:border-slate-800 p-6 shadow-xl text-center animate-modal-in">
+            <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-100">
               Выход из аккаунта
             </h3>
-            <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
               Вы уверены, что хотите выйти? Вам придется заново вводить email и пароль.
             </p>
             <div className="flex flex-col space-y-3">
@@ -482,7 +403,7 @@ const Sidebar = () => {
               </button>
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="rounded-lg bg-gray-100 dark:bg-gray-800 py-2 font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                className="rounded-lg bg-slate-100 dark:bg-slate-800 py-2 font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 Отмена
               </button>
